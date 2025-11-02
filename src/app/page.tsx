@@ -58,7 +58,7 @@ export default async function Home() {
           </p>
           <h1 className="mt-3 md:mt-4 text-3xl md:text-5xl lg:text-7xl font-serif text-[#f6f7f9]">MEGAVI Insight</h1>
           <p className="mt-3 md:mt-4 text-gray-200 text-sm md:text-base lg:text-lg px-4">
-            Cập nhật bảng giá & phân tích theo vùng miền — nhanh, rõ, chính xác.
+            Cập nhật dữ liệu giá gia cầm và biến động thị trường theo thời gian thực.
           </p>
           <div className="mt-6 md:mt-8 flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4 px-4">
             <a

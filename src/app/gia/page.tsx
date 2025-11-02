@@ -17,8 +17,7 @@ export default function PriceDashboardPage() {
             📊 Biểu đồ Giá Gia Cầm Việt Nam
           </h1>
           <p className="mt-3 md:mt-4 text-xs md:text-sm lg:text-base text-gray-300">
-            Chọn chủng loại và khung thời gian để xem diễn biến giá trung bình toàn thị trường. Dữ liệu
-            là giả lập phục vụ thiết kế giao diện.
+            Dữ liệu cập nhật liên tục, phản ánh xu hướng giá gia cầm toàn quốc.
           </p>
         </header>
 
