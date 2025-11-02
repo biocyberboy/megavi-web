@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -83,21 +83,59 @@ type ApiPriceResponse = {
   points: PricePoint[];
 };
 
-export default function PriceChart() {
-  const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [selectedRegion, setSelectedRegion] = useState<string>("ALL");
-  const [seriesMeta, setSeriesMeta] = useState<{ code: string; name: string; unit: string; region: string; product: string } | null>(null);
-  const [selectedRange, setSelectedRange] = useState<RangeOption>(rangeOptions[1]);
+type PriceChartProps = {
+  initialSeriesOptions?: SeriesOption[];
+  initialProduct?: string;
+  initialRegion?: string;
+  initialRangeDays?: number;
+  initialSeriesMeta?: {
+    code: string;
+    name: string;
+    unit: string;
+    region: string;
+    product: string;
+  } | null;
+  initialData?: PricePoint[];
+  initialComparisonData?: Record<string, PricePoint[]>;
+};
+
+export default function PriceChart({
+  initialSeriesOptions,
+  initialProduct,
+  initialRegion,
+  initialRangeDays = rangeOptions[1]?.value ?? 30,
+  initialSeriesMeta = null,
+  initialData = [],
+  initialComparisonData = {},
+}: PriceChartProps) {
+  const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>(initialSeriesOptions ?? []);
+  const [selectedProduct, setSelectedProduct] = useState<string>(
+    initialProduct ?? initialSeriesMeta?.product ?? ""
+  );
+  const [selectedRegion, setSelectedRegion] = useState<string>(
+    initialRegion ?? initialSeriesMeta?.region ?? "ALL"
+  );
+  const [seriesMeta, setSeriesMeta] = useState(initialSeriesMeta);
+  const [selectedRange, setSelectedRange] = useState<RangeOption>(
+    rangeOptions.find((option) => option.value === initialRangeDays) ?? rangeOptions[1]
+  );
   const [chartType, setChartType] = useState<ChartType>("line");
-  const [data, setData] = useState<PricePoint[]>([]);
-  const [comparisonData, setComparisonData] = useState<Record<string, PricePoint[]>>({});
+  const [data, setData] = useState<PricePoint[]>(initialData);
+  const [comparisonData, setComparisonData] = useState<Record<string, PricePoint[]>>(
+    initialComparisonData
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [seriesLoading, setSeriesLoading] = useState(true);
+  const [seriesLoading, setSeriesLoading] = useState(!((initialSeriesOptions ?? []).length > 0));
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  const initialLoadHandledRef = useRef(false);
 
   useEffect(() => {
+    if (seriesOptions.length > 0) {
+      setSeriesLoading(false);
+      return;
+    }
+
     let ignore = false;
     setSeriesLoading(true);
     setSeriesError(null);
@@ -135,7 +173,7 @@ export default function PriceChart() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [seriesOptions.length]);
 
   useEffect(() => {
     if (!selectedProduct) {
@@ -148,6 +186,21 @@ export default function PriceChart() {
     const controller = new AbortController();
 
     async function fetchData() {
+      const usingInitialPayload =
+        !initialLoadHandledRef.current &&
+        initialSeriesMeta &&
+        selectedProduct === initialSeriesMeta.product &&
+        selectedRange.value === (initialRangeDays ?? rangeOptions[1].value) &&
+        (selectedRegion === "ALL"
+          ? Object.keys(initialComparisonData).length > 0
+          : initialData.length > 0);
+
+      if (usingInitialPayload) {
+        initialLoadHandledRef.current = true;
+        return;
+      }
+
+      initialLoadHandledRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -261,7 +314,16 @@ export default function PriceChart() {
       ignore = true;
       controller.abort();
     };
-  }, [selectedProduct, selectedRegion, selectedRange, seriesOptions]);
+  }, [
+    selectedProduct,
+    selectedRegion,
+    selectedRange,
+    seriesOptions,
+    initialSeriesMeta,
+    initialComparisonData,
+    initialData,
+    initialRangeDays,
+  ]);
 
   const chartData = useMemo(
     () =>

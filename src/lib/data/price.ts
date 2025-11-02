@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 
 import prisma from "@/lib/prisma";
-import { REGION_KEYS, normalizeRegion } from "@/lib/seriesCode";
+import { REGION_KEYS, deriveProductFromCode, normalizeRegion } from "@/lib/seriesCode";
 
 const DEFAULT_REVALIDATE_SECONDS = 120;
 
@@ -52,6 +52,111 @@ export async function getSeriesWithRegions() {
 
   return series.map((item) => ({
     ...item,
+    product: deriveProductFromCode(item.code),
     regions: Array.from(regionMap.get(item.id) ?? new Set<string>(REGION_KEYS)),
   }));
+}
+
+type PointPayload = {
+  ts: string;
+  value: number;
+  source: string | null;
+  region?: string;
+};
+
+function toNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  const decimal = value as { toNumber?: () => number };
+  if (decimal?.toNumber) {
+    return decimal.toNumber();
+  }
+  return Number(value);
+}
+
+function getFromDate(days: number) {
+  const fromDate = new Date();
+  const safeDays = Math.max(1, Number.isFinite(days) ? days : 30);
+  fromDate.setUTCDate(fromDate.getUTCDate() - (safeDays - 1));
+  fromDate.setUTCHours(0, 0, 0, 0);
+  return fromDate;
+}
+
+export async function getPricePointsForProduct(
+  productCode: string,
+  region: string,
+  rangeDays: number
+) {
+  const series = await prisma.priceSeries.findUnique({
+    where: { code: productCode },
+    select: { id: true, code: true, name: true, unit: true },
+  });
+
+  if (!series) {
+    return null;
+  }
+
+  const fromDate = getFromDate(rangeDays);
+
+  if (region !== "ALL") {
+    const normalizedRegion = normalizeRegion(region);
+    const regionValue = String(normalizedRegion).toUpperCase();
+
+    const points = await prisma.pricePoint.findMany({
+      where: {
+        seriesId: series.id,
+        region: regionValue,
+        ts: { gte: fromDate },
+      },
+      orderBy: { ts: "asc" },
+    });
+
+    return {
+      meta: {
+        code: series.code,
+        name: series.name,
+        unit: series.unit,
+        region: regionValue,
+        product: deriveProductFromCode(series.code),
+      },
+      data: points.map<PointPayload>((point) => ({
+        ts: point.ts.toISOString(),
+        value: toNumber(point.value),
+        source: point.source ?? null,
+        region: point.region,
+      })),
+    };
+  }
+
+  const points = await prisma.pricePoint.findMany({
+    where: {
+      seriesId: series.id,
+      ts: { gte: fromDate },
+    },
+    orderBy: { ts: "asc" },
+  });
+
+  const dataByRegion = new Map<string, PointPayload[]>();
+
+  points.forEach((point) => {
+    const regionKey = String(normalizeRegion(point.region ?? "")).toUpperCase();
+    const bucket = dataByRegion.get(regionKey) ?? [];
+    bucket.push({
+      ts: point.ts.toISOString(),
+      value: toNumber(point.value),
+      source: point.source ?? null,
+      region: regionKey,
+    });
+    dataByRegion.set(regionKey, bucket);
+  });
+
+  return {
+    meta: {
+      code: series.code,
+      name: series.name,
+      unit: series.unit,
+      region: "ALL",
+      product: deriveProductFromCode(series.code),
+    },
+    dataByRegion: Object.fromEntries(dataByRegion.entries()),
+  };
 }

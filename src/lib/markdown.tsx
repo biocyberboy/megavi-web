@@ -3,6 +3,57 @@ import type { ReactNode } from "react";
 
 type InlineToken = ReactNode;
 
+const IMAGE_SIZE_CLASS_MAP = {
+  small: "max-w-sm",
+  medium: "max-w-xl",
+  large: "max-w-2xl",
+  full: "max-w-3xl md:max-w-4xl",
+} as const;
+
+type ImageSizeKey = keyof typeof IMAGE_SIZE_CLASS_MAP;
+const DEFAULT_IMAGE_SIZE: ImageSizeKey = "medium";
+
+const SIZE_KEYWORDS = Object.keys(IMAGE_SIZE_CLASS_MAP);
+
+function normalizeMeta(value?: string | null) {
+  if (!value) return [];
+  return value
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function resolveSizeKey(sources: string[]): ImageSizeKey {
+  for (const source of sources) {
+    const lower = source.toLowerCase();
+    const matched = SIZE_KEYWORDS.find((keyword) => lower.includes(keyword));
+    if (matched) {
+      return matched as ImageSizeKey;
+    }
+  }
+  return DEFAULT_IMAGE_SIZE;
+}
+
+function extractImageMeta(altText?: string, title?: string) {
+  const altParts = normalizeMeta(altText);
+  const titleParts = normalizeMeta(title);
+
+  const alt = altParts[0] ?? altText ?? "";
+
+  const sizeKey = resolveSizeKey([...altParts.slice(1), ...titleParts, title ?? ""]);
+
+  const potentialCaption =
+    titleParts.find((part) => !SIZE_KEYWORDS.some((keyword) => part.toLowerCase().includes(keyword))) ??
+    (title && !SIZE_KEYWORDS.some((keyword) => title.toLowerCase().includes(keyword)) ? title.trim() : "") ??
+    (alt ? alt : "");
+
+  return {
+    alt: alt || "Hình ảnh minh hoạ",
+    caption: potentialCaption || undefined,
+    sizeClass: IMAGE_SIZE_CLASS_MAP[sizeKey],
+  };
+}
+
 function parseInline(text: string): InlineToken[] {
   const tokens: InlineToken[] = [];
   let remaining = text;
@@ -16,8 +67,9 @@ function parseInline(text: string): InlineToken[] {
     const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
     const italicMatch = remaining.match(/_(.+?)_/);
     const codeMatch = remaining.match(/`(.+?)`/);
+    const imageMatch = remaining.match(/!\[(.*?)\]\((.*?)(?:\s+"(.*?)")?\)/);
 
-    const matches = [boldMatch, italicMatch, codeMatch].filter(Boolean) as RegExpMatchArray[];
+    const matches = [boldMatch, italicMatch, codeMatch, imageMatch].filter(Boolean) as RegExpMatchArray[];
     if (matches.length === 0) {
       pushPlain(remaining);
       break;
@@ -41,6 +93,28 @@ function parseInline(text: string): InlineToken[] {
         <code key={`${content}-${index}`} className="rounded bg-white/5 px-1 py-0.5 text-xs md:text-sm">
           {content}
         </code>
+      );
+    } else if (earliest === imageMatch) {
+      const [, altText, url, title] = earliest;
+      const meta = extractImageMeta(altText, title);
+      tokens.push(
+        <span
+          key={`img-inline-${index}`}
+          className="inline-flex w-full flex-col items-center gap-2 md:gap-3 md:py-2"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={meta.alt}
+            className={`h-auto w-full ${meta.sizeClass} rounded-2xl object-cover shadow-[0_16px_45px_rgba(0,0,0,0.35)]`}
+            loading="lazy"
+          />
+          {meta.caption ? (
+            <span className="text-center text-xs italic text-gray-400 md:text-sm">
+              {meta.caption}
+            </span>
+          ) : null}
+        </span>
       );
     }
 
@@ -116,6 +190,31 @@ export function renderMarkdown(markdown: string): ReactNode {
           </h3>
         );
       }
+      continue;
+    }
+
+    const imageMatch = trimmed.match(/^!\[(.*?)\]\((.*?)(?:\s+"(.*?)")?\)$/);
+    if (imageMatch) {
+      flushList();
+      flushParagraph();
+      const [, altText, url, title] = imageMatch;
+      const meta = extractImageMeta(altText, title);
+      elements.push(
+        <figure key={`img-${elements.length}`} className="my-6 flex flex-col items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={meta.alt}
+            className={`h-auto w-full ${meta.sizeClass} rounded-2xl object-cover shadow-[0_20px_60px_rgba(0,0,0,0.45)]`}
+            loading="lazy"
+          />
+          {meta.caption ? (
+            <figcaption className="text-xs italic text-gray-400 md:text-sm">
+              {meta.caption}
+            </figcaption>
+          ) : null}
+        </figure>
+      );
       continue;
     }
 

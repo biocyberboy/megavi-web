@@ -1,13 +1,44 @@
 import type { Metadata } from "next";
 
 import PriceChart from "@/components/PriceChart";
+import { getPricePointsForProduct, getSeriesWithRegions } from "@/lib/data/price";
+
+type InitialPoint = { ts: string; value: number; source: string | null; region?: string };
 
 export const metadata: Metadata = {
   title: "Bảng giá gia cầm – MEGAVI Official",
   description: "Theo dõi biểu đồ giá gia cầm Việt Nam với dữ liệu giả lập từ MEGAVI.",
 };
 
-export default function PriceDashboardPage() {
+const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_REGION = "ALL";
+
+export default async function PriceDashboardPage() {
+  const seriesOptions = await getSeriesWithRegions();
+  const defaultProduct = seriesOptions[0]?.product ?? "";
+
+  let initialSeriesMeta: {
+    code: string;
+    name: string;
+    unit: string;
+    region: string;
+    product: string;
+  } | null = null;
+  let initialComparisonData: Record<string, InitialPoint[]> = {};
+  let initialData: InitialPoint[] = [];
+
+  if (defaultProduct) {
+    const initialPayload = await getPricePointsForProduct(defaultProduct, DEFAULT_REGION, DEFAULT_RANGE_DAYS);
+    if (initialPayload) {
+      initialSeriesMeta = initialPayload.meta;
+      if (initialPayload.dataByRegion) {
+        initialComparisonData = initialPayload.dataByRegion;
+      } else if (initialPayload.data) {
+        initialData = initialPayload.data;
+      }
+    }
+  }
+
   return (
     <main className="theme-surface min-h-screen px-4 md:px-6 pb-16 md:pb-24 pt-24 md:pt-32">
       <div className="mx-auto max-w-5xl space-y-8 md:space-y-12">
@@ -21,7 +52,15 @@ export default function PriceDashboardPage() {
           </p>
         </header>
 
-        <PriceChart />
+        <PriceChart
+          initialSeriesOptions={seriesOptions}
+          initialProduct={defaultProduct}
+          initialRegion={DEFAULT_REGION}
+          initialRangeDays={DEFAULT_RANGE_DAYS}
+          initialSeriesMeta={initialSeriesMeta}
+          initialComparisonData={initialComparisonData}
+          initialData={initialData}
+        />
       </div>
     </main>
   );
