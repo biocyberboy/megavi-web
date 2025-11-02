@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { renderMarkdown } from "@/lib/markdown";
-import prisma from "@/lib/prisma";
+import { getBlogPostBySlug, getPublishedPosts } from "@/lib/data/blog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,10 +16,7 @@ export async function generateStaticParams() {
     return [];
   }
   try {
-    const posts = await prisma.blogPost.findMany({
-      where: { publishedAt: { not: null } },
-      select: { slug: true },
-    });
+    const posts = await getPublishedPosts();
 
     return posts.map((post) => ({ slug: post.slug }));
   } catch (error) {
@@ -31,10 +28,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
   try {
-    const post = await prisma.blogPost.findUnique({
-      where: { slug },
-      select: { title: true, summary: true, publishedAt: true },
-    });
+    const post = await getBlogPostBySlug(slug);
 
     if (!post || !post.publishedAt) {
       return { title: "Bản tin Gia cầm – MEGAVI Official" };
@@ -65,25 +59,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   } | null = null;
 
   try {
-    post = await prisma.blogPost.findFirst({
-      where: {
-        slug: {
-          equals: slug,
-          mode: "insensitive",
-        },
-      },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        summary: true,
-        coverImage: true,
-        bodyMd: true,
-        publishedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    post = await getBlogPostBySlug(slug);
   } catch (error) {
     console.error("[blog slug] Failed to load post", error);
   }

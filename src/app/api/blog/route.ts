@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getPublishedPosts } from "@/lib/data/blog";
 import prisma from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -9,23 +10,22 @@ export async function GET(request: NextRequest) {
   const limit = Number.isFinite(takeParam) && takeParam > 0 ? Math.min(takeParam, 100) : 50;
 
   try {
-    const posts = await prisma.blogPost.findMany({
-      where: includeDrafts ? undefined : { publishedAt: { not: null } },
-      orderBy: {
-        publishedAt: "desc",
-      },
-      take: limit,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        summary: true,
-        coverImage: true,
-        publishedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const posts = includeDrafts
+      ? await prisma.blogPost.findMany({
+          orderBy: { publishedAt: "desc" },
+          take: limit,
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            summary: true,
+            coverImage: true,
+            publishedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : (await getPublishedPosts()).slice(0, limit);
 
     return NextResponse.json(
       posts.map((post) => ({

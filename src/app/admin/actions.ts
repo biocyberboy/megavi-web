@@ -1,7 +1,7 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import prisma from "@/lib/prisma";
@@ -84,6 +84,9 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
     revalidatePath("/");
     revalidatePath("/blog");
     revalidatePath(`/blog/${slug}`);
+    revalidateTag("blog:list");
+    revalidateTag("blog:latest");
+    revalidateTag(`blog:slug:${slug}`);
 
     return { success: true, message: "Đã lưu bài viết thành công." };
   } catch (error) {
@@ -111,6 +114,9 @@ export async function deleteBlogPost(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/blog");
+  revalidateTag("blog:list");
+  revalidateTag("blog:latest");
+  revalidateTag(`blog:slug:${slug}`);
 }
 
 const pricePointSchema = z.object({
@@ -166,6 +172,8 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
 
     revalidatePath("/admin");
     revalidatePath("/gia");
+    revalidateTag("price:series");
+    revalidateTag("price:points");
 
     return { success: true, message: "Đã cập nhật giá thành công." };
   } catch (error) {
@@ -205,6 +213,8 @@ export async function deletePricePoint(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/gia");
+  revalidateTag("price:series");
+  revalidateTag("price:points");
 }
 
 const seriesSchema = z.object({
@@ -277,4 +287,6 @@ export async function deleteSeries(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/gia");
+  revalidateTag("price:series");
+  revalidateTag("price:points");
 }

@@ -90,6 +90,7 @@ export default async function AdminPage() {
       }),
       prisma.pricePoint.findMany({
         orderBy: { ts: "desc" },
+        take: 200,
         include: {
           series: {
             select: {

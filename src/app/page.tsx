@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import prisma from "@/lib/prisma";
+import { getLatestPublishedPosts } from "@/lib/data/blog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,19 +22,7 @@ export default async function Home() {
   }[] = [];
 
   try {
-    latestPosts = await prisma.blogPost.findMany({
-      where: { publishedAt: { not: null } },
-      orderBy: { publishedAt: "desc" },
-      take: 3,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        summary: true,
-        coverImage: true,
-        publishedAt: true,
-      },
-    });
+    latestPosts = await getLatestPublishedPosts();
   } catch (error) {
     console.error("[home] Failed to load posts", error);
   }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import prisma from "@/lib/prisma";
+import { getPublishedPosts } from "@/lib/data/blog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,18 +28,7 @@ export default async function BlogPage() {
   }[] = [];
 
   try {
-    posts = await prisma.blogPost.findMany({
-      where: { publishedAt: { not: null } },
-      orderBy: { publishedAt: "desc" },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        summary: true,
-        coverImage: true,
-        publishedAt: true,
-      },
-    });
+    posts = await getPublishedPosts();
   } catch (error) {
     console.error("[blog] Failed to load posts", error);
   }

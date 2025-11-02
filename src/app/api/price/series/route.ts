@@ -1,30 +1,11 @@
 import { NextResponse } from "next/server";
 
-import prisma from "@/lib/prisma";
+import { getSeriesRegionPairs, getSeriesSummaries } from "@/lib/data/price";
 import { REGION_KEYS, deriveProductFromCode, normalizeRegion } from "@/lib/seriesCode";
 
 export async function GET() {
   try {
-    const [series, regionPairs] = await Promise.all([
-      prisma.priceSeries.findMany({
-        orderBy: {
-          name: "asc",
-        },
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          unit: true,
-        },
-      }),
-      prisma.pricePoint.findMany({
-        select: {
-          seriesId: true,
-          region: true,
-        },
-        distinct: ["seriesId", "region"],
-      }),
-    ]);
+    const [series, regionPairs] = await Promise.all([getSeriesSummaries(), getSeriesRegionPairs()]);
 
     const regionMap = new Map<string, Set<string>>();
     for (const pair of regionPairs) {
