@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model BlogPost {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  title       String
+  summary     String?
+  coverImage  String?
+  bodyMd      String
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PriceSeries {
+  id        String       @id @default(uuid())
+  code      String       @unique
+  name      String
+  unit      String
+  createdAt DateTime     @default(now())
+  points    PricePoint[]
+}
+
+model PricePoint {
+  id        String      @id @default(uuid())
+  seriesId  String
+  region    String
+  ts        DateTime
+  value     Decimal
+  source    String?
+  createdAt DateTime    @default(now())
+
+  series PriceSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, region, ts])
+  @@index([seriesId, region, ts(sort: Desc)])
+}

@@ -1,0 +1,5 @@
+-- Manual migration to align Prisma history with the current database schema.
+-- Database already has:
+--   • PricePoint.region column (TEXT, NOT NULL)
+--   • Unique index on (seriesId, region, ts)
+-- Nothing to execute here.
