@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import prisma from "@/lib/prisma";
 
+export const revalidate = 0;
+
 const CARD_BACKGROUNDS = [
   "linear-gradient(135deg, rgba(179,13,13,0.85), rgba(11,11,11,0.92))",
   "linear-gradient(135deg, rgba(247,201,72,0.75), rgba(11,11,11,0.9))",

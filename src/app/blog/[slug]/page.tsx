@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { renderMarkdown } from "@/lib/markdown";
 import prisma from "@/lib/prisma";
 
+export const revalidate = 0;
+
 type BlogPostPageProps = {
   params: Promise<{ slug: string }>;
 };

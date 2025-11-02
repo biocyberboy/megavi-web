@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import prisma from "@/lib/prisma";
 
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "Bản tin Gia cầm – MEGAVI Official",
 };
