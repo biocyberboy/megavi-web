@@ -84,9 +84,9 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
     revalidatePath("/");
     revalidatePath("/blog");
     revalidatePath(`/blog/${slug}`);
-    revalidateTag("blog:list");
-    revalidateTag("blog:latest");
-    revalidateTag(`blog:slug:${slug}`);
+    revalidateTag("blog:list", "default");
+    revalidateTag("blog:latest", "default");
+    revalidateTag(`blog:slug:${slug}`, "default");
 
     return { success: true, message: "Đã lưu bài viết thành công." };
   } catch (error) {
@@ -114,9 +114,9 @@ export async function deleteBlogPost(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/blog");
-  revalidateTag("blog:list");
-  revalidateTag("blog:latest");
-  revalidateTag(`blog:slug:${slug}`);
+  revalidateTag("blog:list", "default");
+  revalidateTag("blog:latest", "default");
+  revalidateTag(`blog:slug:${slug}`, "default");
 }
 
 const pricePointSchema = z.object({
@@ -172,8 +172,8 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
 
     revalidatePath("/admin");
     revalidatePath("/gia");
-    revalidateTag("price:series");
-    revalidateTag("price:points");
+    revalidateTag("price:series", "default");
+    revalidateTag("price:points", "default");
 
     return { success: true, message: "Đã cập nhật giá thành công." };
   } catch (error) {
@@ -213,8 +213,8 @@ export async function deletePricePoint(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/gia");
-  revalidateTag("price:series");
-  revalidateTag("price:points");
+  revalidateTag("price:series", "default");
+  revalidateTag("price:points", "default");
 }
 
 const seriesSchema = z.object({
@@ -287,6 +287,6 @@ export async function deleteSeries(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/gia");
-  revalidateTag("price:series");
-  revalidateTag("price:points");
+  revalidateTag("price:series", "default");
+  revalidateTag("price:points", "default");
 }
