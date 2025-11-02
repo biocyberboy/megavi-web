@@ -1,0 +1,7 @@
+# Local environment files should stay private
+.env
+.env.*
+!.env.example
+
+# Skip seeding script in Vercel build context
+prisma/seed.ts
