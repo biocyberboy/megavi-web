@@ -54,13 +54,10 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
 
   const regionOptions = useMemo(() => {
     const matched = series.filter((item) => item.product === selectedProduct);
-    const regions = new Set<string>();
+    const regions = new Set<string>(REGION_KEYS);
     matched.forEach((item) => {
-      item.regions.forEach((region) => regions.add(region));
+      item.regions.forEach((region) => regions.add(normalizeRegion(region)));
     });
-    if (regions.size === 0) {
-      REGION_KEYS.forEach((region) => regions.add(region));
-    }
     return Array.from(regions);
   }, [series, selectedProduct]);
 

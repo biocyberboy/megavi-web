@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { renderMarkdown } from "@/lib/markdown";
 import prisma from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type BlogPostPageProps = {
@@ -11,6 +12,9 @@ type BlogPostPageProps = {
 };
 
 export async function generateStaticParams() {
+  if (process.env.SKIP_PRERENDER === "true" || process.env.VERCEL === "1") {
+    return [];
+  }
   try {
     const posts = await prisma.blogPost.findMany({
       where: { publishedAt: { not: null } },

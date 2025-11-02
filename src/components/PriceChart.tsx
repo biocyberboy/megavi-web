@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 
 import PriceTable from "@/components/PriceTable";
 
@@ -24,6 +25,14 @@ const REGION_LABELS: Record<string, string> = {
   MIEN_NAM: "Miền Nam",
   ALL: "Tất cả vùng",
 };
+
+const REGION_COLORS: Record<string, string> = {
+  MIEN_BAC: "#f7c948",
+  MIEN_TRUNG: "#b30d0d",
+  MIEN_NAM: "#60a5fa",
+};
+
+const REGION_ORDER: string[] = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
 
 type RangeOption = {
   label: string;
@@ -344,6 +353,79 @@ export default function PriceChart() {
     return null;
   };
 
+  const ComparisonTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+    if (!active || !payload || payload.length === 0) {
+      return null;
+    }
+
+    const basePayload = payload[0]?.payload as { ts?: string } | undefined;
+    const ts = basePayload?.ts;
+    const date = ts ? new Date(ts) : null;
+    const formattedDate = date
+      ? date.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : null;
+
+    const regionsWithValue = REGION_ORDER.map((region) => {
+      const item = payload.find((entry) => entry?.dataKey === region && typeof entry.value === "number");
+      if (!item || typeof item.value !== "number") {
+        return null;
+      }
+      return {
+        region,
+        value: item.value,
+      };
+    }).filter(Boolean) as Array<{ region: string; value: number }>;
+
+    if (regionsWithValue.length === 0) {
+      return null;
+    }
+
+    return (
+      <div
+        style={{
+          backgroundColor: "rgba(11,11,11,0.95)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "16px",
+          color: "#f6f7f9",
+          padding: "12px 16px",
+          minWidth: "200px",
+        }}
+      >
+        {formattedDate ? (
+          <p style={{ color: "#f7c948", fontSize: 12, textTransform: "uppercase", marginBottom: "6px" }}>
+            {formattedDate}
+          </p>
+        ) : null}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {regionsWithValue.map(({ region, value }) => (
+            <div key={region} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
+                <span
+                  aria-hidden
+                  style={{
+                    display: "inline-block",
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    backgroundColor: REGION_COLORS[region] ?? "#f7c948",
+                  }}
+                />
+                {REGION_LABELS[region] ?? region}
+              </span>
+              <span style={{ fontSize: 12, color: "#f6f7f9", fontWeight: 500 }}>
+                {formatTooltipValue(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const productOptions = useMemo(() => {
     const map = new Map<string, string>();
     seriesOptions.forEach((series) => {
@@ -504,7 +586,10 @@ export default function PriceChart() {
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
-                  <Tooltip cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }} />
+                  <Tooltip
+                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    content={<ComparisonTooltip />}
+                  />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="line"
@@ -516,6 +601,7 @@ export default function PriceChart() {
                     stroke="#f7c948"
                     strokeWidth={2.5}
                     dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: "#f7c948" }}
                     name="MIEN_BAC"
                     connectNulls
                   />
@@ -525,6 +611,7 @@ export default function PriceChart() {
                     stroke="#b30d0d"
                     strokeWidth={2.5}
                     dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: "#b30d0d" }}
                     name="MIEN_TRUNG"
                     connectNulls
                   />
@@ -534,6 +621,7 @@ export default function PriceChart() {
                     stroke="#60a5fa"
                     strokeWidth={2.5}
                     dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: "#60a5fa" }}
                     name="MIEN_NAM"
                     connectNulls
                   />
@@ -587,7 +675,10 @@ export default function PriceChart() {
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
-                  <Tooltip cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }} />
+                  <Tooltip
+                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    content={<ComparisonTooltip />}
+                  />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
@@ -693,7 +784,10 @@ export default function PriceChart() {
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
-                  <Tooltip cursor={{ fill: "rgba(247,201,72,0.1)" }} />
+                  <Tooltip
+                    cursor={{ fill: "rgba(247,201,72,0.1)" }}
+                    content={<ComparisonTooltip />}
+                  />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
