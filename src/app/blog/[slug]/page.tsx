@@ -1,9 +1,9 @@
-import DOMPurify from "isomorphic-dompurify";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { renderMarkdown } from "@/lib/markdown";
 import { getBlogPostBySlug, getPublishedPosts } from "@/lib/data/blog";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -77,9 +77,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   const rawBody = post.bodyMd ?? "";
   const isHtmlBody = /<\/?[a-z][\s\S]*>/i.test(rawBody);
-  const sanitizedHtml = DOMPurify.sanitize(rawBody, {
-    ADD_ATTR: ["style", "target", "rel"],
-  });
+  const sanitizedHtml = sanitizeRichText(rawBody);
 
   const content = isHtmlBody ? (
     <div

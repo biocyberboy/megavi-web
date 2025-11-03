@@ -1,11 +1,11 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
-import DOMPurify from "isomorphic-dompurify";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import prisma from "@/lib/prisma";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 export type ActionState = {
   success: boolean;
@@ -61,9 +61,7 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
     }
 
     const { slug, title, summary, coverImage, bodyMd, publishedAt } = parsed.data;
-    const sanitizedBody = DOMPurify.sanitize(bodyMd, {
-      ADD_ATTR: ["style", "target", "rel"],
-    }).trim();
+    const sanitizedBody = sanitizeRichText(bodyMd).trim();
 
     if (sanitizedBody.length === 0) {
       return { success: false, message: "Nội dung bài viết đang trống sau khi làm sạch." };
