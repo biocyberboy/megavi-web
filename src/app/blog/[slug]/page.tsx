@@ -1,3 +1,4 @@
+import DOMPurify from "isomorphic-dompurify";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -74,7 +75,20 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     year: "numeric",
   });
 
-  const content = renderMarkdown(post.bodyMd);
+  const rawBody = post.bodyMd ?? "";
+  const isHtmlBody = /<\/?[a-z][\s\S]*>/i.test(rawBody);
+  const sanitizedHtml = DOMPurify.sanitize(rawBody, {
+    ADD_ATTR: ["style", "target", "rel"],
+  });
+
+  const content = isHtmlBody ? (
+    <div
+      className="prose prose-invert prose-headings:font-serif prose-strong:text-[#f7c948]"
+      dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+    />
+  ) : (
+    renderMarkdown(rawBody)
+  );
 
   return (
     <main className="theme-surface pb-16 md:pb-24">

@@ -1,12 +1,34 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 
 import type { ActionState } from "./actions";
 import { createBlogPost } from "./actions";
 
 const initialState: ActionState = { success: false, message: "" };
+
+const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const CKEDITOR_SCRIPT_URL = "https://cdn.ckeditor.com/4.22.1/standard-all/ckeditor.js";
+
+type CKEditorInstance = {
+  destroy: () => void;
+  setData: (data: string) => void;
+  getData: () => string;
+  updateElement: () => void;
+  focus: () => void;
+  insertHtml: (html: string) => void;
+  on: (event: string, callback: () => void) => void;
+  fire: (event: string) => void;
+};
+
+declare global {
+  interface Window {
+    CKEDITOR?: {
+      replace: (element: HTMLTextAreaElement, config?: Record<string, unknown>) => CKEditorInstance;
+    };
+  }
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -21,10 +43,6 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-
-const createReferenceId = () => `img-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
-
 export default function BlogForm() {
   const [state, formAction] = useFormState(createBlogPost, initialState);
   const [bodyValue, setBodyValue] = useState("");
@@ -32,63 +50,117 @@ export default function BlogForm() {
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const editorRef = useRef<CKEditorInstance | null>(null);
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
 
-  const insertAtCursor = useCallback((value: string) => {
-    setBodyValue((prev) => {
-      const textarea = textareaRef.current;
-      if (!textarea) {
-        return `${prev}${value}`;
-      }
-
-      const { selectionStart = prev.length, selectionEnd = prev.length } = textarea;
-      const next = prev.slice(0, selectionStart) + value + prev.slice(selectionEnd);
-
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const cursor = selectionStart + value.length;
-        textarea.setSelectionRange(cursor, cursor);
-      });
-
-      return next;
-    });
+  const syncEditorData = useCallback((editor: CKEditorInstance) => {
+    const data = editor.getData();
+    setBodyValue(data);
+    editor.updateElement();
   }, []);
 
-  const insertImageWithReference = useCallback(
+  const initializeEditor = useCallback(() => {
+    if (!textareaRef.current || !window.CKEDITOR || editorRef.current) {
+      return;
+    }
+
+    const instance = window.CKEDITOR.replace(textareaRef.current, {
+      removePlugins: "elementspath",
+      extraPlugins: "autogrow",
+      autoGrow_minHeight: 280,
+      autoGrow_maxHeight: 600,
+      autoGrow_bottomSpace: 24,
+      toolbar: [
+        { name: "clipboard", items: ["Undo", "Redo"] },
+        { name: "styles", items: ["Format", "FontSize"] },
+        { name: "basicstyles", items: ["Bold", "Italic", "Underline", "RemoveFormat"] },
+        { name: "paragraph", items: ["NumberedList", "BulletedList", "Blockquote"] },
+        { name: "insert", items: ["Image", "Table", "HorizontalRule"] },
+        { name: "links", items: ["Link", "Unlink"] },
+        { name: "tools", items: ["Maximize"] },
+      ],
+    });
+
+    editorRef.current = instance;
+
+    instance.on("instanceReady", () => {
+      const initialData = textareaRef.current?.value ?? "";
+      setBodyValue(initialData);
+      instance.setData(initialData);
+    });
+
+    instance.on("change", () => {
+      syncEditorData(instance);
+    });
+  }, [syncEditorData]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (window.CKEDITOR) {
+      initializeEditor();
+      return;
+    }
+
+    if (!scriptRef.current) {
+      const script = document.createElement("script");
+      script.src = CKEDITOR_SCRIPT_URL;
+      script.onload = initializeEditor;
+      script.onerror = () => {
+        setHelperMessage("Không tải được CKEditor. Vui lòng kiểm tra kết nối.");
+      };
+      document.body.appendChild(script);
+      scriptRef.current = script;
+    }
+
+    return () => {
+      if (editorRef.current) {
+        editorRef.current.destroy();
+        editorRef.current = null;
+      }
+      if (scriptRef.current) {
+        scriptRef.current.onload = null;
+        scriptRef.current.onerror = null;
+      }
+    };
+  }, [initializeEditor]);
+
+  useEffect(() => {
+    if (textareaRef.current && textareaRef.current.value !== bodyValue) {
+      textareaRef.current.value = bodyValue;
+    }
+  }, [bodyValue]);
+
+  const insertImageIntoEditor = useCallback(
     (source: string) => {
-      const referenceId = createReferenceId();
-      const imageMarkdown = `![Ảnh minh hoạ][${referenceId}]`;
-      setBodyValue((prev) => {
-        const textarea = textareaRef.current;
-        if (!textarea) {
-          return `${prev}\n\n${imageMarkdown}\n\n[${referenceId}]: ${source}`;
-        }
+      const trimmed = source.trim();
+      if (!trimmed) {
+        return;
+      }
 
-        const { selectionStart = prev.length, selectionEnd = prev.length } = textarea;
-        const before = prev.slice(0, selectionStart);
-        const after = prev.slice(selectionEnd);
-        const insertion = `\n\n${imageMarkdown}\n\n`;
-        let nextBody = `${before}${insertion}${after}`;
+      const editor = editorRef.current;
+      if (editor) {
+        editor.focus();
+        editor.fire("saveSnapshot");
+        editor.insertHtml(
+          `<p><img src="${trimmed}" alt="Ảnh minh hoạ" style="max-width:100%; height:auto;" /></p>`
+        );
+        editor.fire("saveSnapshot");
+        syncEditorData(editor);
+        setHelperMessage("Đã chèn ảnh vào nội dung.");
+        return;
+      }
 
-        const trimmed = nextBody.replace(/\s+$/g, "");
-        const definitionLine = `[${referenceId}]: ${source}`;
-
-        if (trimmed.length === 0) {
-          nextBody = `${imageMarkdown}\n\n${definitionLine}`;
-        } else {
-          nextBody = `${trimmed}\n\n${definitionLine}`;
-        }
-
-        requestAnimationFrame(() => {
-          textarea.focus();
-          const cursor = before.length + insertion.length;
-          textarea.setSelectionRange(cursor, cursor);
-        });
-
-        return nextBody;
-      });
-      setHelperMessage("Đã chèn ảnh. Định nghĩa ảnh được thêm ở cuối bài.");
+      if (textareaRef.current) {
+        const fallbackHtml = `${bodyValue}<p><img src="${trimmed}" alt="Ảnh minh hoạ" style="max-width:100%; height:auto;" /></p>`;
+        textareaRef.current.value = fallbackHtml;
+        setBodyValue(fallbackHtml);
+        setHelperMessage("Đã chèn ảnh vào nội dung.");
+      }
     },
-    []
+    [bodyValue, syncEditorData]
   );
 
   const handleInsertImageUrl = useCallback(() => {
@@ -96,12 +168,8 @@ export default function BlogForm() {
     if (!url) {
       return;
     }
-    const trimmed = url.trim();
-    if (!trimmed) {
-      return;
-    }
-    insertImageWithReference(trimmed);
-  }, [insertImageWithReference]);
+    insertImageIntoEditor(url);
+  }, [insertImageIntoEditor]);
 
   const readFileAsDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -125,13 +193,13 @@ export default function BlogForm() {
       }
       try {
         const dataUrl = await readFileAsDataUrl(file);
-        insertImageWithReference(dataUrl);
+        insertImageIntoEditor(dataUrl);
       } catch (error) {
         console.error("[blog-form] insert file", error);
         setHelperMessage("Không thể tải ảnh. Vui lòng thử lại.");
       }
     },
-    [insertImageWithReference]
+    [insertImageIntoEditor]
   );
 
   const handleFileInputChange = useCallback(
@@ -243,7 +311,7 @@ export default function BlogForm() {
 
       <div className="flex flex-col gap-2 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>Nội dung Markdown</span>
+          <span>Nội dung bài viết</span>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
@@ -260,7 +328,7 @@ export default function BlogForm() {
               Chèn ảnh từ URL
             </button>
             <span className="text-[10px] text-gray-500">
-              Có thể dán ảnh trực tiếp hoặc kéo thả vào khung soạn thảo.
+              Có thể kéo thả hoặc dán ảnh trực tiếp vào khung soạn thảo.
             </span>
           </div>
         </div>
@@ -269,20 +337,14 @@ export default function BlogForm() {
           name="bodyMd"
           required
           rows={12}
-          value={bodyValue}
           onChange={(event) => setBodyValue(event.target.value)}
           onPaste={handlePaste}
           onDrop={handleDrop}
           onDragOver={(event) => event.preventDefault()}
-          placeholder="# Tiêu đề lớn\n\nNội dung bài viết..."
-          className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948] min-h-[240px]"
+          placeholder="Nội dung bài viết..."
+          className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
         />
         {helperMessage ? <span className="text-xs text-gray-400">{helperMessage}</span> : null}
-        <span className="text-[10px] text-gray-500">
-          Mẹo: thêm <code>|small</code>, <code>|large</code> hoặc <code>|full</code> vào sau chữ mô tả trong cú pháp
-          <code> ![caption|large][ref]</code> để điều chỉnh kích thước ảnh. Các định nghĩa ảnh nằm ở cuối nội dung, bạn có
-          thể sắp xếp lại nếu cần.
-        </span>
         <input
           ref={fileInputRef}
           type="file"

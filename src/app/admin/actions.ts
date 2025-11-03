@@ -1,6 +1,7 @@
 "use server";
 
 import { Prisma } from "@prisma/client";
+import DOMPurify from "isomorphic-dompurify";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 
@@ -60,6 +61,13 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
     }
 
     const { slug, title, summary, coverImage, bodyMd, publishedAt } = parsed.data;
+    const sanitizedBody = DOMPurify.sanitize(bodyMd, {
+      ADD_ATTR: ["style", "target", "rel"],
+    }).trim();
+
+    if (sanitizedBody.length === 0) {
+      return { success: false, message: "Nội dung bài viết đang trống sau khi làm sạch." };
+    }
 
     await prisma.blogPost.upsert({
       where: { slug },
@@ -67,7 +75,7 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
         title,
         summary: summary ?? null,
         coverImage: coverImage ?? null,
-        bodyMd,
+        bodyMd: sanitizedBody,
         publishedAt: publishedAt ? new Date(`${publishedAt}T00:00:00Z`) : null,
       },
       create: {
@@ -75,7 +83,7 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
         title,
         summary: summary ?? null,
         coverImage: coverImage ?? null,
-        bodyMd,
+        bodyMd: sanitizedBody,
         publishedAt: publishedAt ? new Date(`${publishedAt}T00:00:00Z`) : null,
       },
     });
