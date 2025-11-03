@@ -2,26 +2,41 @@
 
 import { useState } from "react";
 
-const PASSCODE = "longtong95";
 const STORAGE_KEY = "megavi-admin-pass";
 
 export default function PasscodeGate({ onSuccess }: { onSuccess: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalized = code.trim();
-    if (normalized === PASSCODE) {
-      try {
-        window.sessionStorage.setItem(STORAGE_KEY, "ok");
-      } catch (error) {
-        // ignore
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode: code.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        try {
+          window.sessionStorage.setItem(STORAGE_KEY, "ok");
+        } catch {
+          // ignore
+        }
+        onSuccess();
+      } else {
+        setError("Sai mật khẩu bảo vệ");
       }
-      setError(null);
-      onSuccess();
-    } else {
-      setError("Sai mật khẩu bảo vệ");
+    } catch {
+      setError("Không thể xác thực. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,9 +71,10 @@ export default function PasscodeGate({ onSuccess }: { onSuccess: () => void }) {
         {error ? <p className="text-sm text-red-400">{error}</p> : <p className="text-xs text-gray-400">Mật khẩu bảo vệ MEGAVI Admin.</p>}
         <button
           type="submit"
-          className="rounded-full bg-[#f7c948] px-5 py-2 text-sm font-semibold text-black transition hover:bg-[#f7c948]/80"
+          disabled={loading}
+          className="rounded-full bg-[#f7c948] px-5 py-2 text-sm font-semibold text-black transition hover:bg-[#f7c948]/80 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Truy cập
+          {loading ? "Đang xác thực..." : "Truy cập"}
         </button>
       </form>
     </div>
