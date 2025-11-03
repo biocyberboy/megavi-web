@@ -1,6 +1,6 @@
-import sanitizeHtml from "sanitize-html";
+import sanitizeHtml, { type IOptions } from "sanitize-html";
 
-const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+const SANITIZE_OPTIONS: IOptions = {
   allowedTags: [
     "p",
     "span",
