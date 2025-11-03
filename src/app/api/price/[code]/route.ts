@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const product = code.trim().toUpperCase();
     const url = new URL(request.url);
     const regionParam = url.searchParams.get("region")?.toUpperCase() ?? "ALL";
+    const companyParam = url.searchParams.get("company");
     const rangeParam = Number(url.searchParams.get("range"));
     const days = [7, 30, 90].includes(rangeParam) ? rangeParam : 30;
 
@@ -49,14 +50,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const normalizedRegion = normalizeRegion(regionParam);
       const regionValue = String(normalizedRegion).toUpperCase();
 
-      const points = await prisma.pricePoint.findMany({
-        where: {
-          seriesId: series.id,
-          region: regionValue,
-          ts: {
-            gte: fromDate,
-          },
+      const where: any = {
+        seriesId: series.id,
+        region: regionValue,
+        ts: {
+          gte: fromDate,
         },
+      };
+
+      // Add company filter if provided
+      if (companyParam) {
+        where.company = companyParam === "null" ? null : companyParam;
+      }
+
+      const points = await prisma.pricePoint.findMany({
+        where,
         orderBy: { ts: "asc" },
       });
 
@@ -64,6 +72,51 @@ export async function GET(request: NextRequest, context: RouteContext) {
         return NextResponse.json(
           { error: `Không có dữ liệu cho vùng ${regionValue}` },
           { status: 404 }
+        );
+      }
+
+      // If no specific company is requested, group by company for multi-line chart
+      if (!companyParam) {
+        const dataByCompany = new Map<string, Array<{ ts: string; value: number; source: string | null; company: string | null }>>();
+
+        for (const point of points) {
+          const companyKey = point.company ?? "null";
+          const bucket = dataByCompany.get(companyKey) ?? [];
+          bucket.push({
+            ts: point.ts.toISOString(),
+            value: formatPointValue(point.value),
+            source: point.source ?? null,
+            company: point.company,
+          });
+          dataByCompany.set(companyKey, bucket);
+        }
+
+        const companiesPayload = Object.fromEntries(
+          Array.from(dataByCompany.entries()).map(([companyKey, companyPoints]) => [
+            companyKey,
+            companyPoints.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()),
+          ])
+        );
+
+        // Return with companies data for multi-line chart
+        return NextResponse.json(
+          {
+            series: {
+              code: series.code,
+              name: series.name,
+              unit: series.unit,
+              region: regionValue,
+              product,
+            },
+            range: days,
+            points: [],
+            companies: companiesPayload,
+          },
+          {
+            headers: {
+              "Cache-Control": "s-maxage=300, stale-while-revalidate=60",
+            },
+          }
         );
       }
 

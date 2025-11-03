@@ -157,7 +157,7 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
         </label>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <label className="flex flex-col gap-2 text-sm">
           Giá trị
           <input
@@ -166,6 +166,14 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
             name="value"
             required
             placeholder="30000"
+            className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          Công ty (tuỳ chọn)
+          <input
+            name="company"
+            placeholder="CP, Japfa, Dabaco, ..."
             className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
           />
         </label>

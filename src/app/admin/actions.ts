@@ -133,6 +133,7 @@ const pricePointSchema = z.object({
     .string()
     .min(1, "Nhập giá trị")
     .refine((val) => !Number.isNaN(Number(val)), "Giá trị phải là số"),
+  company: z.string().trim().optional(),
   source: z.string().trim().optional(),
 });
 
@@ -143,6 +144,7 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       region: formData.get("region") ?? "",
       date: formData.get("date") ?? "",
       value: formData.get("value") ?? "",
+      company: formData.get("company") ?? "",
       source: formData.get("source") ?? "",
     });
 
@@ -151,15 +153,17 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       return { success: false, message };
     }
 
-    const { seriesId, region, date, value, source } = parsed.data;
+    const { seriesId, region, date, value, company, source } = parsed.data;
     const pointDate = new Date(`${date}T00:00:00Z`);
     const normalizedRegion = region.trim().toUpperCase();
+    const normalizedCompany = company && company.length > 0 ? company.trim() : null;
 
     await prisma.pricePoint.upsert({
       where: {
-        seriesId_region_ts: {
+        seriesId_region_company_ts: {
           seriesId,
           region: normalizedRegion,
+          company: normalizedCompany,
           ts: pointDate,
         },
       },
@@ -170,6 +174,7 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       create: {
         seriesId,
         region: normalizedRegion,
+        company: normalizedCompany,
         ts: pointDate,
         value: Number(value),
         source: source || null,
@@ -191,6 +196,7 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
 export async function deletePricePoint(formData: FormData) {
   const seriesId = formData.get("seriesId");
   const region = formData.get("region");
+  const company = formData.get("company");
   const ts = formData.get("ts");
 
   if (typeof seriesId !== "string" || typeof ts !== "string" || typeof region !== "string") {
@@ -202,12 +208,15 @@ export async function deletePricePoint(formData: FormData) {
     return;
   }
 
+  const normalizedCompany = typeof company === "string" && company.length > 0 ? company.trim() : null;
+
   try {
     await prisma.pricePoint.delete({
       where: {
-        seriesId_region_ts: {
+        seriesId_region_company_ts: {
           seriesId,
           region: region.trim().toUpperCase(),
+          company: normalizedCompany,
           ts: timestamp,
         },
       },

@@ -34,6 +34,18 @@ const REGION_COLORS: Record<string, string> = {
 
 const REGION_ORDER: string[] = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
 
+// Company colors - using a palette that works well together
+const COMPANY_COLORS: string[] = [
+  "#f7c948", // yellow
+  "#b30d0d", // red
+  "#60a5fa", // blue
+  "#10b981", // green
+  "#8b5cf6", // purple
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#14b8a6", // teal
+];
+
 type RangeOption = {
   label: string;
   value: number;
@@ -87,6 +99,10 @@ type ApiPriceRegionsResponse = ApiPriceResponse & {
   regions?: Record<string, PricePoint[]>;
 };
 
+type ApiPriceCompaniesResponse = ApiPriceResponse & {
+  companies?: Record<string, PricePoint[]>;
+};
+
 type PriceChartProps = {
   initialSeriesOptions?: SeriesOption[];
   initialProduct?: string;
@@ -119,6 +135,8 @@ export default function PriceChart({
   const [selectedRegion, setSelectedRegion] = useState<string>(
     initialRegion ?? initialSeriesMeta?.region ?? "ALL"
   );
+  const [selectedCompany, setSelectedCompany] = useState<string>("ALL");
+  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [seriesMeta, setSeriesMeta] = useState(initialSeriesMeta);
   const [selectedRange, setSelectedRange] = useState<RangeOption>(
     rangeOptions.find((option) => option.value === initialRangeDays) ?? rangeOptions[1]
@@ -128,6 +146,7 @@ export default function PriceChart({
   const [comparisonData, setComparisonData] = useState<Record<string, PricePoint[]>>(
     initialComparisonData
   );
+  const [companyComparisonData, setCompanyComparisonData] = useState<Record<string, PricePoint[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(!((initialSeriesOptions ?? []).length > 0));
@@ -211,8 +230,9 @@ export default function PriceChart({
       // If "ALL" regions selected, fetch all three regions for comparison
       if (selectedRegion === "ALL") {
         try {
+          const companyParam = selectedCompany !== "ALL" ? `&company=${encodeURIComponent(selectedCompany)}` : "";
           const response = await fetch(
-            `/api/price/${selectedProduct}?range=${selectedRange.value}&region=ALL`,
+            `/api/price/${selectedProduct}?range=${selectedRange.value}&region=ALL${companyParam}`,
             {
               signal: controller.signal,
               cache: "no-store",
@@ -279,8 +299,9 @@ export default function PriceChart({
 
       // Normal mode - single region
       try {
+        const companyParam = selectedCompany !== "ALL" ? `&company=${encodeURIComponent(selectedCompany)}` : "";
         const response = await fetch(
-          `/api/price/${selectedProduct}?range=${selectedRange.value}&region=${selectedRegion}`,
+          `/api/price/${selectedProduct}?range=${selectedRange.value}&region=${selectedRegion}${companyParam}`,
           {
             signal: controller.signal,
             cache: "no-store",
@@ -308,7 +329,7 @@ export default function PriceChart({
           throw new Error(`Lỗi tải dữ liệu (${response.status})`);
         }
 
-        const payload: ApiPriceResponse = await response.json();
+        const payload: ApiPriceCompaniesResponse = await response.json();
         if (!ignore) {
           setSeriesMeta({
             code: payload.series.code,
@@ -317,8 +338,17 @@ export default function PriceChart({
             region: payload.series.region,
             product: payload.series.product,
           });
-          setData(payload.points);
-          setComparisonData({});
+
+          // Check if we have company comparison data
+          if (payload.companies && Object.keys(payload.companies).length > 0) {
+            setCompanyComparisonData(payload.companies);
+            setData([]);
+            setComparisonData({});
+          } else {
+            setData(payload.points);
+            setCompanyComparisonData({});
+            setComparisonData({});
+          }
         }
       } catch (err) {
         if (!ignore && err instanceof Error && err.name !== "AbortError") {
@@ -340,6 +370,7 @@ export default function PriceChart({
   }, [
     selectedProduct,
     selectedRegion,
+    selectedCompany,
     selectedRange,
     seriesOptions,
     initialSeriesMeta,
@@ -388,6 +419,34 @@ export default function PriceChart({
     });
   }, [comparisonData, selectedRange.value]);
 
+  const companyComparisonChartData = useMemo(() => {
+    const allTimestamps = new Set<string>();
+    Object.values(companyComparisonData).forEach(points => {
+      points.forEach(point => allTimestamps.add(point.ts));
+    });
+
+    const sortedTimestamps = Array.from(allTimestamps).sort();
+
+    return sortedTimestamps.map(ts => {
+      const dataPoint: Record<string, string | number | undefined> = {
+        ts,
+        dateLabel: new Date(ts).toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: selectedRange.value >= 30 ? "short" : "numeric",
+        }),
+      };
+
+      Object.entries(companyComparisonData).forEach(([company, points]) => {
+        const point = points.find(p => p.ts === ts);
+        if (point) {
+          dataPoint[company] = point.value;
+        }
+      });
+
+      return dataPoint;
+    });
+  }, [companyComparisonData, selectedRange.value]);
+
   const tableData = useMemo(() => {
     if (selectedRegion === "ALL") {
       // Flatten all regions data for table display
@@ -399,8 +458,20 @@ export default function PriceChart({
       });
       return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
     }
+
+    if (Object.keys(companyComparisonData).length > 0) {
+      // Flatten all companies data for table display
+      const allPoints: PricePoint[] = [];
+      Object.entries(companyComparisonData).forEach(([company, points]) => {
+        points.forEach(point => {
+          allPoints.push({ ...point, region: selectedRegion });
+        });
+      });
+      return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
+    }
+
     return data;
-  }, [selectedRegion, comparisonData, data]);
+  }, [selectedRegion, comparisonData, companyComparisonData, data]);
 
   const formatTooltipValue = (value: number) =>
     `${Intl.NumberFormat("vi-VN").format(value)} ${seriesMeta?.unit ?? "đ/kg"}`;
@@ -511,6 +582,76 @@ export default function PriceChart({
     );
   };
 
+  const CompanyTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+    if (!active || !payload || payload.length === 0) {
+      return null;
+    }
+
+    const basePayload = payload[0]?.payload as { ts?: string } | undefined;
+    const ts = basePayload?.ts;
+    const date = ts ? new Date(ts) : null;
+    const formattedDate = date
+      ? date.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : null;
+
+    const companiesWithValue = payload
+      .filter((entry) => entry?.dataKey && entry.dataKey !== "ts" && entry.dataKey !== "dateLabel" && typeof entry.value === "number")
+      .map((entry) => ({
+        company: String(entry.dataKey),
+        value: entry.value as number,
+        color: entry.color ?? "#f7c948",
+      }));
+
+    if (companiesWithValue.length === 0) {
+      return null;
+    }
+
+    return (
+      <div
+        style={{
+          backgroundColor: "rgba(11,11,11,0.95)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: "16px",
+          color: "#f6f7f9",
+          padding: "12px 16px",
+          minWidth: "200px",
+        }}
+      >
+        {formattedDate ? (
+          <p style={{ color: "#f7c948", fontSize: 12, textTransform: "uppercase", marginBottom: "6px" }}>
+            {formattedDate}
+          </p>
+        ) : null}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {companiesWithValue.map(({ company, value, color }) => (
+            <div key={company} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
+                <span
+                  aria-hidden
+                  style={{
+                    display: "inline-block",
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    backgroundColor: color,
+                  }}
+                />
+                {company === "null" ? "Chưa phân loại" : company}
+              </span>
+              <span style={{ fontSize: 12, color: "#f6f7f9", fontWeight: 500 }}>
+                {formatTooltipValue(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const productOptions = useMemo(() => {
     const map = new Map<string, string>();
     seriesOptions.forEach((series) => {
@@ -540,6 +681,67 @@ export default function PriceChart({
       setSelectedRegion(regionOptions[0] ?? "ALL");
     }
   }, [regionOptions, selectedRegion]);
+
+  // Fetch company options based on selected product and region
+  useEffect(() => {
+    if (!selectedProduct) {
+      setCompanyOptions([]);
+      return;
+    }
+
+    let ignore = false;
+    const controller = new AbortController();
+
+    async function fetchCompanies() {
+      try {
+        const selectedSeries = seriesOptions.find((s) => s.product === selectedProduct);
+        if (!selectedSeries) {
+          if (!ignore) {
+            setCompanyOptions([]);
+          }
+          return;
+        }
+
+        const params = new URLSearchParams({ series: selectedSeries.id });
+        if (selectedRegion !== "ALL") {
+          params.append("region", selectedRegion);
+        }
+
+        const response = await fetch(`/api/prices/metadata?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch companies");
+        }
+
+        const payload: { companies: string[] } = await response.json();
+        if (!ignore) {
+          setCompanyOptions(payload.companies);
+        }
+      } catch (err) {
+        if (!ignore && err instanceof Error && err.name !== "AbortError") {
+          console.error("Failed to fetch companies:", err);
+          setCompanyOptions([]);
+        }
+      }
+    }
+
+    fetchCompanies();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [selectedProduct, selectedRegion, seriesOptions]);
+
+  // Reset company to "ALL" when region is "ALL" to prevent invalid state
+  useEffect(() => {
+    if (selectedRegion === "ALL" && selectedCompany !== "ALL") {
+      setSelectedCompany("ALL");
+    }
+  }, [selectedRegion, selectedCompany]);
 
   return (
     <div className="theme-panel space-y-4 md:space-y-6 rounded-2xl md:rounded-3xl border p-4 md:p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur">
@@ -583,13 +785,36 @@ export default function PriceChart({
             Vùng miền
             <select
               value={selectedRegion}
-              onChange={(event) => setSelectedRegion(event.target.value)}
+              onChange={(event) => {
+                setSelectedRegion(event.target.value);
+                // Reset company when region changes
+                setSelectedCompany("ALL");
+              }}
               className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
               disabled={seriesLoading || !!seriesError}
             >
               {regionOptions.map((region) => (
                 <option key={region} value={region} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
                   {REGION_LABELS[region] ?? region}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+            Công ty
+            <select
+              value={selectedCompany}
+              onChange={(event) => setSelectedCompany(event.target.value)}
+              className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
+              disabled={seriesLoading || !!seriesError || (selectedRegion === "ALL" && companyOptions.length > 0)}
+            >
+              <option value="ALL" className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
+                {companyOptions.length === 0 ? "Không có dữ liệu" : "Tất cả công ty"}
+              </option>
+              {companyOptions.map((company) => (
+                <option key={company} value={company} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
+                  {company}
                 </option>
               ))}
             </select>
@@ -647,7 +872,7 @@ export default function PriceChart({
           <div className="flex h-full items-center justify-center text-sm text-red-400">
             {error}
           </div>
-        ) : (selectedRegion === "ALL" ? comparisonChartData.length === 0 : chartData.length === 0) ? (
+        ) : (selectedRegion === "ALL" ? comparisonChartData.length === 0 : (companyComparisonChartData.length > 0 ? companyComparisonChartData.length === 0 : chartData.length === 0)) ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-400">
             Chưa có dữ liệu cho lựa chọn này.
           </div>
@@ -710,6 +935,46 @@ export default function PriceChart({
                     name="MIEN_NAM"
                     connectNulls
                   />
+                </LineChart>
+              ) : companyComparisonChartData.length > 0 ? (
+                <LineChart data={companyComparisonChartData}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                  />
+                  <YAxis
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                    tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    content={<CompanyTooltip />}
+                  />
+                  <Legend
+                    wrapperStyle={{ paddingTop: "20px" }}
+                    iconType="line"
+                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                  />
+                  {Object.keys(companyComparisonData).map((company, index) => (
+                    <Line
+                      key={company}
+                      type="monotone"
+                      dataKey={company}
+                      stroke={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: COMPANY_COLORS[index % COMPANY_COLORS.length] }}
+                      name={company}
+                      connectNulls
+                    />
+                  ))}
                 </LineChart>
               ) : (
                 <LineChart data={chartData}>
@@ -814,6 +1079,54 @@ export default function PriceChart({
                     connectNulls
                   />
                 </AreaChart>
+              ) : companyComparisonChartData.length > 0 ? (
+                <AreaChart data={companyComparisonChartData}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                  />
+                  <YAxis
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                    tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
+                  />
+                  <Tooltip
+                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    content={<CompanyTooltip />}
+                  />
+                  <Legend
+                    wrapperStyle={{ paddingTop: "20px" }}
+                    iconType="rect"
+                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                  />
+                  <defs>
+                    {Object.keys(companyComparisonData).map((company, index) => (
+                      <linearGradient key={company} id={`colorCompany${index}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COMPANY_COLORS[index % COMPANY_COLORS.length]} stopOpacity={0.8} />
+                        <stop offset="95%" stopColor={COMPANY_COLORS[index % COMPANY_COLORS.length]} stopOpacity={0.1} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  {Object.keys(companyComparisonData).map((company, index) => (
+                    <Area
+                      key={company}
+                      type="monotone"
+                      dataKey={company}
+                      stroke={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      strokeWidth={2.5}
+                      fill={`url(#colorCompany${index})`}
+                      fillOpacity={0.6}
+                      name={company}
+                      connectNulls
+                    />
+                  ))}
+                </AreaChart>
               ) : (
                 <AreaChart data={chartData}>
                   <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
@@ -896,6 +1209,42 @@ export default function PriceChart({
                     radius={[8, 8, 0, 0]}
                     name="MIEN_NAM"
                   />
+                </BarChart>
+              ) : companyComparisonChartData.length > 0 ? (
+                <BarChart data={companyComparisonChartData}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="dateLabel"
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                  />
+                  <YAxis
+                    stroke="#d1d5db"
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={12}
+                    tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(247,201,72,0.1)" }}
+                    content={<CompanyTooltip />}
+                  />
+                  <Legend
+                    wrapperStyle={{ paddingTop: "20px" }}
+                    iconType="rect"
+                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                  />
+                  {Object.keys(companyComparisonData).map((company, index) => (
+                    <Bar
+                      key={company}
+                      dataKey={company}
+                      fill={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      radius={[8, 8, 0, 0]}
+                      name={company}
+                    />
+                  ))}
                 </BarChart>
               ) : (
                 <BarChart data={chartData}>

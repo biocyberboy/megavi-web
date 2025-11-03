@@ -14,6 +14,6 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
-    url: env("DIRECT_URL"), // Dùng DIRECT_URL thay vì DATABASE_URL
+    url: env("DATABASE_URL"), // Use DATABASE_URL for migrations (pooled connection)
   },
 });

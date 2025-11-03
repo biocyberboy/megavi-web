@@ -33,6 +33,7 @@ model PricePoint {
   id        String      @id @default(uuid())
   seriesId  String
   region    String
+  company   String?
   ts        DateTime
   value     Decimal
   source    String?
@@ -40,6 +41,6 @@ model PricePoint {
 
   series PriceSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
-  @@unique([seriesId, region, ts])
-  @@index([seriesId, region, ts(sort: Desc)])
+  @@unique([seriesId, region, company, ts])
+  @@index([seriesId, region, company, ts(sort: Desc)])
 }
