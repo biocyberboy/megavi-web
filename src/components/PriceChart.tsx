@@ -83,6 +83,10 @@ type ApiPriceResponse = {
   points: PricePoint[];
 };
 
+type ApiPriceRegionsResponse = ApiPriceResponse & {
+  regions?: Record<string, PricePoint[]>;
+};
+
 type PriceChartProps = {
   initialSeriesOptions?: SeriesOption[];
   initialProduct?: string;
@@ -207,39 +211,58 @@ export default function PriceChart({
       // If "ALL" regions selected, fetch all three regions for comparison
       if (selectedRegion === "ALL") {
         try {
-          const regions = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
-          const fetchPromises = regions.map(region =>
-            fetch(`/api/price/${selectedProduct}?range=${selectedRange.value}&region=${region}`, {
+          const response = await fetch(
+            `/api/price/${selectedProduct}?range=${selectedRange.value}&region=ALL`,
+            {
               signal: controller.signal,
               cache: "no-store",
-            }).then(async (response) => {
-              if (!response.ok) return null;
-              const payload: ApiPriceResponse = await response.json();
-              return { region, data: payload };
-            }).catch(() => null)
+            }
           );
 
-          const results = await Promise.all(fetchPromises);
-          if (!ignore) {
-            const dataByRegion: Record<string, PricePoint[]> = {};
-            const validResults = results.filter((r): r is { region: string; data: ApiPriceResponse } => r !== null);
+          if (!response.ok) {
+            if (response.status === 404) {
+              if (!ignore) {
+                setSeriesMeta({
+                  code: selectedProduct,
+                  name: selectedProduct,
+                  unit: "",
+                  region: "ALL",
+                  product: selectedProduct,
+                });
+                setComparisonData({});
+                setData([]);
+                setError("Hiện chưa có dữ liệu cho lựa chọn này. Vui lòng thử lại sau.");
+              }
+              return;
+            }
+            throw new Error(`Lỗi tải dữ liệu (${response.status})`);
+          }
 
-            validResults.forEach(result => {
-              dataByRegion[result.region] = result.data.points;
+          const payload: ApiPriceRegionsResponse = await response.json();
+
+          if (!ignore) {
+            setSeriesMeta({
+              code: payload.series.code,
+              name: payload.series.name,
+              unit: payload.series.unit,
+              region: "ALL",
+              product: payload.series.product,
             });
 
-            if (validResults.length > 0) {
-              const firstValid = validResults[0];
-              setSeriesMeta({
-                code: firstValid.data.series.code,
-                name: firstValid.data.series.name,
-                unit: firstValid.data.series.unit,
-                region: "ALL",
-                product: selectedProduct,
-              });
-            }
+            const regionMap = payload.regions;
 
-            setComparisonData(dataByRegion);
+            if (regionMap && Object.keys(regionMap).length > 0) {
+              setComparisonData(regionMap);
+            } else {
+              const fallbackData: Record<string, PricePoint[]> = {};
+              (payload.points ?? []).forEach((point) => {
+                const regionKey = point.region ?? "ALL";
+                const bucket = fallbackData[regionKey] ?? [];
+                bucket.push(point);
+                fallbackData[regionKey] = bucket;
+              });
+              setComparisonData(fallbackData);
+            }
             setData([]);
           }
         } catch (err) {

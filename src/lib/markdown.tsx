@@ -3,6 +3,11 @@ import type { ReactNode } from "react";
 
 type InlineToken = ReactNode;
 
+type ImageReference = {
+  url: string;
+  title?: string;
+};
+
 const IMAGE_SIZE_CLASS_MAP = {
   small: "max-w-sm",
   medium: "max-w-xl",
@@ -54,7 +59,7 @@ function extractImageMeta(altText?: string, title?: string) {
   };
 }
 
-function parseInline(text: string): InlineToken[] {
+function parseInline(text: string, references: Map<string, ImageReference>): InlineToken[] {
   const tokens: InlineToken[] = [];
   let remaining = text;
 
@@ -68,8 +73,9 @@ function parseInline(text: string): InlineToken[] {
     const italicMatch = remaining.match(/_(.+?)_/);
     const codeMatch = remaining.match(/`(.+?)`/);
     const imageMatch = remaining.match(/!\[(.*?)\]\((.*?)(?:\s+"(.*?)")?\)/);
+    const imageRefMatch = remaining.match(/!\[(.*?)\]\[(.+?)\]/);
 
-    const matches = [boldMatch, italicMatch, codeMatch, imageMatch].filter(Boolean) as RegExpMatchArray[];
+    const matches = [boldMatch, italicMatch, codeMatch, imageMatch, imageRefMatch].filter(Boolean) as RegExpMatchArray[];
     if (matches.length === 0) {
       pushPlain(remaining);
       break;
@@ -94,9 +100,18 @@ function parseInline(text: string): InlineToken[] {
           {content}
         </code>
       );
-    } else if (earliest === imageMatch) {
-      const [, altText, url, title] = earliest;
-      const meta = extractImageMeta(altText, title);
+    } else if (earliest === imageMatch || earliest === imageRefMatch) {
+      const [, altText, rawTarget, title] = earliest;
+      const reference = earliest === imageRefMatch ? references.get(rawTarget) : undefined;
+      const url = earliest === imageRefMatch ? reference?.url : rawTarget;
+      const resolvedTitle = reference?.title ?? title;
+
+      if (!url) {
+        remaining = remaining.slice(index + full.length);
+        continue;
+      }
+
+      const meta = extractImageMeta(altText, resolvedTitle);
       tokens.push(
         <span
           key={`img-inline-${index}`}
@@ -125,7 +140,20 @@ function parseInline(text: string): InlineToken[] {
 }
 
 export function renderMarkdown(markdown: string): ReactNode {
-  const lines = markdown.trim().split(/\r?\n/);
+  const rawLines = markdown.trim().split(/\r?\n/);
+  const referenceMap = new Map<string, ImageReference>();
+  const lines: string[] = [];
+
+  for (const line of rawLines) {
+    const definitionMatch = line.match(/^\[([^\]]+)\]:\s*(\S+)(?:\s+"(.*?)")?\s*$/);
+    if (definitionMatch) {
+      const [, key, url, title] = definitionMatch;
+      referenceMap.set(key.trim(), { url, title: title?.trim() });
+      continue;
+    }
+    lines.push(line);
+  }
+
   const elements: ReactNode[] = [];
   let listBuffer: string[] = [];
   let paragraphBuffer: string[] = [];
@@ -135,7 +163,7 @@ export function renderMarkdown(markdown: string): ReactNode {
     elements.push(
       <ul key={`list-${elements.length}`} className="ml-4 md:ml-6 list-disc space-y-1.5 md:space-y-2 text-sm md:text-base text-gray-200">
         {listBuffer.map((item, idx) => (
-          <li key={idx}>{parseInline(item)}</li>
+          <li key={idx}>{parseInline(item, referenceMap)}</li>
         ))}
       </ul>
     );
@@ -148,7 +176,7 @@ export function renderMarkdown(markdown: string): ReactNode {
     if (text) {
       elements.push(
         <p key={`p-${elements.length}`} className="text-sm md:text-base text-gray-200 leading-relaxed">
-          {parseInline(text)}
+          {parseInline(text, referenceMap)}
         </p>
       );
     }
@@ -174,19 +202,19 @@ export function renderMarkdown(markdown: string): ReactNode {
       if (headingLevel === 1) {
         elements.push(
           <h1 key={`h-${elements.length}`} className="mt-6 md:mt-8 font-serif text-xl md:text-3xl text-white first:mt-0">
-            {parseInline(text)}
+            {parseInline(text, referenceMap)}
           </h1>
         );
       } else if (headingLevel === 2) {
         elements.push(
           <h2 key={`h-${elements.length}`} className="mt-5 md:mt-8 font-serif text-lg md:text-2xl text-white/90 first:mt-0">
-            {parseInline(text)}
+            {parseInline(text, referenceMap)}
           </h2>
         );
       } else {
         elements.push(
           <h3 key={`h-${elements.length}`} className="mt-4 md:mt-8 font-serif text-base md:text-xl text-white/80 first:mt-0">
-            {parseInline(text)}
+            {parseInline(text, referenceMap)}
           </h3>
         );
       }
@@ -233,7 +261,7 @@ export function renderMarkdown(markdown: string): ReactNode {
           key={`blockquote-${elements.length}`}
           className="border-l-2 border-[#f7c948]/60 pl-3 md:pl-4 text-sm md:text-base text-gray-200 italic"
         >
-          {parseInline(text)}
+          {parseInline(text, referenceMap)}
         </blockquote>
       );
       continue;

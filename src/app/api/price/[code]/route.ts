@@ -110,16 +110,28 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const grouped = new Map<string, { sum: number; count: number }>();
+    const dataByRegion = new Map<string, Array<{ ts: string; value: number; source: string | null; region?: string }>>();
+
     for (const point of points) {
-      const key = point.ts.toISOString();
+      const tsKey = point.ts.toISOString();
       const value = formatPointValue(point.value);
-      const bucket = grouped.get(key);
+      const bucket = grouped.get(tsKey);
       if (bucket) {
         bucket.sum += value;
         bucket.count += 1;
       } else {
-        grouped.set(key, { sum: value, count: 1 });
+        grouped.set(tsKey, { sum: value, count: 1 });
       }
+
+      const regionKey = String(normalizeRegion(point.region ?? "")).toUpperCase();
+      const regionBucket = dataByRegion.get(regionKey) ?? [];
+      regionBucket.push({
+        ts: tsKey,
+        value,
+        source: point.source ?? null,
+        region: regionKey,
+      });
+      dataByRegion.set(regionKey, regionBucket);
     }
 
     const aggregated = Array.from(grouped.entries())
@@ -130,6 +142,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
         region: "ALL",
       }))
       .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+
+    const regionsPayload = Object.fromEntries(
+      Array.from(dataByRegion.entries()).map(([regionKey, regionPoints]) => [
+        regionKey,
+        regionPoints.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime()),
+      ])
+    );
 
     return NextResponse.json(
       {
@@ -142,6 +161,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         },
         range: days,
         points: aggregated,
+        regions: regionsPayload,
       },
       {
         headers: {

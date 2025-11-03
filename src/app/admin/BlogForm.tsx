@@ -23,6 +23,8 @@ function SubmitButton({ label }: { label: string }) {
 
 const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
+const createReferenceId = () => `img-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+
 export default function BlogForm() {
   const [state, formAction] = useFormState(createBlogPost, initialState);
   const [bodyValue, setBodyValue] = useState("");
@@ -51,6 +53,44 @@ export default function BlogForm() {
     });
   }, []);
 
+  const insertImageWithReference = useCallback(
+    (source: string) => {
+      const referenceId = createReferenceId();
+      const imageMarkdown = `![Ảnh minh hoạ][${referenceId}]`;
+      setBodyValue((prev) => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+          return `${prev}\n\n${imageMarkdown}\n\n[${referenceId}]: ${source}`;
+        }
+
+        const { selectionStart = prev.length, selectionEnd = prev.length } = textarea;
+        const before = prev.slice(0, selectionStart);
+        const after = prev.slice(selectionEnd);
+        const insertion = `\n\n${imageMarkdown}\n\n`;
+        let nextBody = `${before}${insertion}${after}`;
+
+        const trimmed = nextBody.replace(/\s+$/g, "");
+        const definitionLine = `[${referenceId}]: ${source}`;
+
+        if (trimmed.length === 0) {
+          nextBody = `${imageMarkdown}\n\n${definitionLine}`;
+        } else {
+          nextBody = `${trimmed}\n\n${definitionLine}`;
+        }
+
+        requestAnimationFrame(() => {
+          textarea.focus();
+          const cursor = before.length + insertion.length;
+          textarea.setSelectionRange(cursor, cursor);
+        });
+
+        return nextBody;
+      });
+      setHelperMessage("Đã chèn ảnh. Định nghĩa ảnh được thêm ở cuối bài.");
+    },
+    []
+  );
+
   const handleInsertImageUrl = useCallback(() => {
     const url = window.prompt("Dán đường dẫn ảnh (https:// hoặc data:image/...):");
     if (!url) {
@@ -60,9 +100,8 @@ export default function BlogForm() {
     if (!trimmed) {
       return;
     }
-    insertAtCursor(`\n\n![Ảnh minh hoạ](${trimmed})\n\n`);
-    setHelperMessage("Đã chèn ảnh từ URL.");
-  }, [insertAtCursor]);
+    insertImageWithReference(trimmed);
+  }, [insertImageWithReference]);
 
   const readFileAsDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -86,14 +125,13 @@ export default function BlogForm() {
       }
       try {
         const dataUrl = await readFileAsDataUrl(file);
-        insertAtCursor(`\n\n![Ảnh minh hoạ](${dataUrl})\n\n`);
-        setHelperMessage("Đã chèn ảnh vào nội dung. Bạn có thể di chuyển đoạn markdown để sắp xếp vị trí.");
+        insertImageWithReference(dataUrl);
       } catch (error) {
         console.error("[blog-form] insert file", error);
         setHelperMessage("Không thể tải ảnh. Vui lòng thử lại.");
       }
     },
-    [insertAtCursor]
+    [insertImageWithReference]
   );
 
   const handleFileInputChange = useCallback(
@@ -241,8 +279,9 @@ export default function BlogForm() {
         />
         {helperMessage ? <span className="text-xs text-gray-400">{helperMessage}</span> : null}
         <span className="text-[10px] text-gray-500">
-          Mẹo: thêm <code>|small</code>, <code>|large</code> hoặc <code>|full</code> vào sau chữ mô tả trong cú pháp
-          <code> ![caption|large](url)</code> để điều chỉnh kích thước ảnh.
+          Mẹo: thêm <code>|small</code>, <code>|large</code> hoặc <code>|full</code> vào sau chữ mô tả trong cú pháp
+          <code> ![caption|large][ref]</code> để điều chỉnh kích thước ảnh. Các định nghĩa ảnh nằm ở cuối nội dung, bạn có
+          thể sắp xếp lại nếu cần.
         </span>
         <input
           ref={fileInputRef}
