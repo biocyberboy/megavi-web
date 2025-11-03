@@ -9,7 +9,7 @@ import { createBlogPost } from "./actions";
 const initialState: ActionState = { success: false, message: "" };
 
 const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-const CKEDITOR_SCRIPT_URL = "https://cdn.ckeditor.com/4.25.1-lts/standard-all/ckeditor.js";
+const CKEDITOR_SCRIPT_URL = "https://cdn.ckeditor.com/4.22.1/standard-all/ckeditor.js";
 
 type CKEditorInstance = {
   destroy: () => void;
