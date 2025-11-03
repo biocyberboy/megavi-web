@@ -65,6 +65,7 @@ type PricePoint = {
   value: number;
   source: string | null;
   region?: string;
+  company?: string | null;
 };
 
 const rangeOptions: RangeOption[] = [
@@ -464,7 +465,7 @@ export default function PriceChart({
       const allPoints: PricePoint[] = [];
       Object.entries(companyComparisonData).forEach(([company, points]) => {
         points.forEach(point => {
-          allPoints.push({ ...point, region: selectedRegion });
+          allPoints.push({ ...point, region: selectedRegion, company: company === "null" ? null : company });
         });
       });
       return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));

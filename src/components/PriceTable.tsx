@@ -8,6 +8,7 @@ type PricePoint = {
   value: number;
   source: string | null;
   region?: string;
+  company?: string | null;
 };
 
 type Props = {
@@ -109,7 +110,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Vùng miền</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Ngày</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Giá trị</th>
-              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Nguồn</th>
+              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Công ty</th>
             </tr>
           </thead>
           <tbody>
@@ -131,7 +132,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
                     })}
                   </td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-white whitespace-nowrap">{formatNumber(point.value, series.unit)}</td>
-                  <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400">{point.source || "—"}</td>
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400">{point.company || "—"}</td>
                 </tr>
               ))
             )}
