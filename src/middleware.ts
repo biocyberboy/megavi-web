@@ -22,7 +22,7 @@ function getRateLimitKey(request: NextRequest): string {
   // Try to get real IP from various headers (for reverse proxy/CDN)
   const forwardedFor = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
-  const ip = forwardedFor?.split(",")[0] || realIp || request.ip || "unknown";
+  const ip = forwardedFor?.split(",")[0] || realIp || "unknown";
 
   return `${ip}-${request.nextUrl.pathname}`;
 }
