@@ -19,6 +19,9 @@ import type { TooltipProps } from "recharts";
 
 import PriceTable from "@/components/PriceTable";
 
+import { useTheme } from "@/components/ThemeProvider";
+const ACCENT_COLOR = "#f7c948";
+
 const REGION_LABELS: Record<string, string> = {
   MIEN_BAC: "Miền Bắc",
   MIEN_TRUNG: "Miền Trung",
@@ -27,23 +30,26 @@ const REGION_LABELS: Record<string, string> = {
 };
 
 const REGION_COLORS: Record<string, string> = {
-  MIEN_BAC: "#f7c948",
-  MIEN_TRUNG: "#b30d0d",
-  MIEN_NAM: "#60a5fa",
+  MIEN_BAC: ACCENT_COLOR,
+  MIEN_TRUNG: "#B06A55",
+  MIEN_NAM: "#4E7C9A",
 };
 
 const REGION_ORDER: string[] = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
 
+const sortRegionsArray = (regions: string[]) =>
+  regions.slice().sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b));
+
 // Company colors - using a palette that works well together
 const COMPANY_COLORS: string[] = [
-  "#f7c948", // yellow
-  "#b30d0d", // red
-  "#60a5fa", // blue
-  "#10b981", // green
-  "#8b5cf6", // purple
-  "#f59e0b", // amber
-  "#ec4899", // pink
-  "#14b8a6", // teal
+  ACCENT_COLOR,
+  "#B06A55",
+  "#4E7C9A",
+  "#4C8471",
+  "#8B72B0",
+  "#D99145",
+  "#C67794",
+  "#4BA6A0",
 ];
 
 type RangeOption = {
@@ -69,10 +75,12 @@ type PricePoint = {
 };
 
 const rangeOptions: RangeOption[] = [
+  { label: "Mới nhất", value: 0 },
   { label: "7 ngày", value: 7 },
   { label: "30 ngày", value: 30 },
-  { label: "90 ngày", value: 90 },
 ];
+
+const DEFAULT_RANGE_VALUE = 7;
 
 type ChartType = "line" | "area" | "bar";
 
@@ -124,23 +132,38 @@ export default function PriceChart({
   initialSeriesOptions,
   initialProduct,
   initialRegion,
-  initialRangeDays = rangeOptions[1]?.value ?? 30,
+  initialRangeDays = DEFAULT_RANGE_VALUE,
   initialSeriesMeta = null,
   initialData = [],
   initialComparisonData = {},
 }: PriceChartProps) {
+  const { theme } = useTheme();
+  const axisColor = theme === "light" ? "#1f2933" : "#d1d5db";
+  const gridColor = theme === "light" ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.08)";
+  const tooltipBg = theme === "light" ? "rgba(255,255,255,0.96)" : "rgba(11,11,11,0.95)";
+  const tooltipBorder = theme === "light" ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.08)";
+  const tooltipText = theme === "light" ? "#1f2933" : "#f6f7f9";
+  const legendTextColor = theme === "light" ? "#1f2933" : "#d1d5db";
   const [seriesOptions, setSeriesOptions] = useState<SeriesOption[]>(initialSeriesOptions ?? []);
   const [selectedProduct, setSelectedProduct] = useState<string>(
     initialProduct ?? initialSeriesMeta?.product ?? ""
   );
-  const [selectedRegion, setSelectedRegion] = useState<string>(
-    initialRegion ?? initialSeriesMeta?.region ?? "ALL"
+  const [selectedRegions, setSelectedRegions] = useState<string[]>(
+    (() => {
+      const initial = initialRegion ?? initialSeriesMeta?.region ?? "ALL";
+      if (initial === "ALL") {
+        return ["ALL"];
+      }
+      return [initial];
+    })()
   );
   const [selectedCompany, setSelectedCompany] = useState<string>("ALL");
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [seriesMeta, setSeriesMeta] = useState(initialSeriesMeta);
   const [selectedRange, setSelectedRange] = useState<RangeOption>(
-    rangeOptions.find((option) => option.value === initialRangeDays) ?? rangeOptions[1]
+    rangeOptions.find((option) => option.value === initialRangeDays) ??
+      rangeOptions.find((option) => option.value === DEFAULT_RANGE_VALUE) ??
+      rangeOptions[0]
   );
   const [chartType, setChartType] = useState<ChartType>("line");
   const [data, setData] = useState<PricePoint[]>(initialData);
@@ -153,6 +176,22 @@ export default function PriceChart({
   const [seriesLoading, setSeriesLoading] = useState(!((initialSeriesOptions ?? []).length > 0));
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const initialLoadHandledRef = useRef(false);
+
+  const isAllRegionsSelected =
+    selectedRegions.length === 0 || selectedRegions.includes("ALL");
+  const normalizedSelectedRegions = sortRegionsArray(
+    selectedRegions.filter((region) => region !== "ALL")
+  );
+  const isMultiRegionSelected =
+    !isAllRegionsSelected && normalizedSelectedRegions.length > 1;
+  const isSingleRegionSelected =
+    !isAllRegionsSelected && normalizedSelectedRegions.length === 1;
+  const primaryRegion = isAllRegionsSelected
+    ? "ALL"
+    : normalizedSelectedRegions[0] ?? "ALL";
+  const regionSelectionKey = isAllRegionsSelected
+    ? "ALL"
+    : normalizedSelectedRegions.join("|");
 
   useEffect(() => {
     if (seriesOptions.length > 0) {
@@ -174,10 +213,10 @@ export default function PriceChart({
           setSeriesOptions(payload);
           if (payload.length > 0) {
             setSelectedProduct((prev) => prev || payload[0].product);
-            setSelectedRegion("ALL");
+            setSelectedRegions(["ALL"]);
           } else {
             setSelectedProduct("");
-            setSelectedRegion("ALL");
+            setSelectedRegions(["ALL"]);
             setSeriesMeta(null);
           }
         }
@@ -214,10 +253,10 @@ export default function PriceChart({
         !initialLoadHandledRef.current &&
         initialSeriesMeta &&
         selectedProduct === initialSeriesMeta.product &&
-        selectedRange.value === (initialRangeDays ?? rangeOptions[1].value) &&
-        (selectedRegion === "ALL"
+        selectedRange.value === (initialRangeDays ?? DEFAULT_RANGE_VALUE) &&
+        (isAllRegionsSelected
           ? Object.keys(initialComparisonData).length > 0
-          : initialData.length > 0);
+          : isSingleRegionSelected && initialData.length > 0);
 
       if (usingInitialPayload) {
         initialLoadHandledRef.current = true;
@@ -229,7 +268,7 @@ export default function PriceChart({
       setError(null);
 
       // If "ALL" regions selected, fetch all three regions for comparison
-      if (selectedRegion === "ALL") {
+      if (isAllRegionsSelected) {
         try {
           const companyParam = selectedCompany !== "ALL" ? `&company=${encodeURIComponent(selectedCompany)}` : "";
           const response = await fetch(
@@ -298,11 +337,86 @@ export default function PriceChart({
         return;
       }
 
+      if (isMultiRegionSelected) {
+        if (selectedCompany === "ALL") {
+          if (!ignore) {
+            setError("Vui lòng chọn một công ty để so sánh giữa nhiều vùng.");
+            setComparisonData({});
+            setCompanyComparisonData({});
+            setData([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        try {
+          const params = new URLSearchParams({ range: String(selectedRange.value) });
+          selectedRegions.forEach((region) => params.append("regions", region));
+          if (selectedCompany && selectedCompany !== "ALL") {
+            params.append("company", selectedCompany);
+          }
+
+          const response = await fetch(
+            `/api/price/${selectedProduct}?${params.toString()}`,
+            {
+              signal: controller.signal,
+              cache: "no-store",
+            }
+          );
+
+          if (response.status === 404) {
+            if (!ignore) {
+              setSeriesMeta({
+                code: selectedProduct,
+                name: selectedProduct,
+                unit: "",
+                region: "MULTI",
+                product: selectedProduct,
+              });
+              setComparisonData({});
+              setCompanyComparisonData({});
+              setData([]);
+              setError("Không tìm thấy dữ liệu cho các vùng đã chọn.");
+            }
+            return;
+          }
+
+          if (!response.ok) {
+            throw new Error(`Lỗi tải dữ liệu (${response.status})`);
+          }
+
+          const payload: ApiPriceRegionsResponse = await response.json();
+          if (!ignore) {
+            setSeriesMeta({
+              code: payload.series.code,
+              name: payload.series.name,
+              unit: payload.series.unit,
+              region: "MULTI",
+              product: payload.series.product,
+            });
+
+            const regionMap = payload.regions ?? {};
+            setComparisonData(regionMap);
+            setCompanyComparisonData({});
+            setData([]);
+          }
+        } catch (err) {
+          if (!ignore && err instanceof Error && err.name !== "AbortError") {
+            setError(err.message);
+          }
+        } finally {
+          if (!ignore) {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
       // Normal mode - single region
       try {
         const companyParam = selectedCompany !== "ALL" ? `&company=${encodeURIComponent(selectedCompany)}` : "";
         const response = await fetch(
-          `/api/price/${selectedProduct}?range=${selectedRange.value}&region=${selectedRegion}${companyParam}`,
+          `/api/price/${selectedProduct}?range=${selectedRange.value}&region=${primaryRegion}${companyParam}`,
           {
             signal: controller.signal,
             cache: "no-store",
@@ -316,7 +430,7 @@ export default function PriceChart({
               code: matchedSeries?.code ?? selectedProduct,
               name: matchedSeries?.name ?? matchedSeries?.code ?? selectedProduct,
               unit: matchedSeries?.unit ?? "",
-              region: selectedRegion,
+              region: primaryRegion,
               product: selectedProduct,
             });
             setData([]);
@@ -370,7 +484,7 @@ export default function PriceChart({
     };
   }, [
     selectedProduct,
-    selectedRegion,
+    regionSelectionKey,
     selectedCompany,
     selectedRange,
     seriesOptions,
@@ -378,6 +492,9 @@ export default function PriceChart({
     initialComparisonData,
     initialData,
     initialRangeDays,
+    isAllRegionsSelected,
+    isMultiRegionSelected,
+    primaryRegion,
   ]);
 
   const chartData = useMemo(
@@ -394,13 +511,13 @@ export default function PriceChart({
 
   const comparisonChartData = useMemo(() => {
     const allTimestamps = new Set<string>();
-    Object.values(comparisonData).forEach(points => {
-      points.forEach(point => allTimestamps.add(point.ts));
+    Object.values(comparisonData).forEach((points) => {
+      points.forEach((point) => allTimestamps.add(point.ts));
     });
 
     const sortedTimestamps = Array.from(allTimestamps).sort();
 
-    return sortedTimestamps.map(ts => {
+    return sortedTimestamps.map((ts) => {
       const dataPoint: Record<string, string | number | undefined> = {
         ts,
         dateLabel: new Date(ts).toLocaleDateString("vi-VN", {
@@ -410,9 +527,11 @@ export default function PriceChart({
       };
 
       Object.entries(comparisonData).forEach(([region, points]) => {
-        const point = points.find(p => p.ts === ts);
-        if (point) {
-          dataPoint[region] = point.value;
+        const matches = points.filter((point) => point.ts === ts);
+        if (matches.length > 0) {
+          const sum = matches.reduce((total, point) => total + point.value, 0);
+          dataPoint[region] = sum / matches.length;
+          dataPoint[`${region}__count`] = matches.length;
         }
       });
 
@@ -448,31 +567,95 @@ export default function PriceChart({
     });
   }, [companyComparisonData, selectedRange.value]);
 
-  const tableData = useMemo(() => {
-    if (selectedRegion === "ALL") {
-      // Flatten all regions data for table display
+const tableData = useMemo(() => {
+    if (isAllRegionsSelected || isMultiRegionSelected) {
       const allPoints: PricePoint[] = [];
       Object.entries(comparisonData).forEach(([region, points]) => {
-        points.forEach(point => {
-          allPoints.push({ ...point, region });
+        points.forEach((point) => {
+          allPoints.push({ ...point, region, company: point.company ?? null });
         });
       });
       return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
     }
 
     if (Object.keys(companyComparisonData).length > 0) {
-      // Flatten all companies data for table display
       const allPoints: PricePoint[] = [];
       Object.entries(companyComparisonData).forEach(([company, points]) => {
-        points.forEach(point => {
-          allPoints.push({ ...point, region: selectedRegion, company: company === "null" ? null : company });
+        points.forEach((point) => {
+          allPoints.push({
+            ...point,
+            region: primaryRegion,
+            company: company === "null" ? null : company,
+          });
         });
       });
       return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
     }
 
     return data;
-  }, [selectedRegion, comparisonData, companyComparisonData, data]);
+  }, [
+    comparisonData,
+    companyComparisonData,
+    data,
+    isAllRegionsSelected,
+    isMultiRegionSelected,
+    primaryRegion,
+  ]);
+
+  const displayRegionLabel = isAllRegionsSelected
+    ? "Tất cả vùng"
+    : normalizedSelectedRegions
+        .map((region) => REGION_LABELS[region] ?? region)
+        .join(", ");
+
+  const tableRegionValue = isSingleRegionSelected ? primaryRegion : undefined;
+  const regionSeriesKeys = isAllRegionsSelected ? REGION_ORDER : normalizedSelectedRegions;
+
+  const activePointCount = useMemo(() => {
+    if (isAllRegionsSelected || isMultiRegionSelected) {
+      return comparisonChartData.length;
+    }
+    if (companyComparisonChartData.length > 0) {
+      return companyComparisonChartData.length;
+    }
+    return chartData.length;
+  }, [
+    chartData,
+    comparisonChartData,
+    companyComparisonChartData,
+    isAllRegionsSelected,
+    isMultiRegionSelected,
+  ]);
+
+  const minChartWidth = useMemo(() => {
+    if (activePointCount <= 1) {
+      return 360;
+    }
+    const baseWidth = chartType === "bar" ? 80 : 64;
+    return Math.max(360, activePointCount * baseWidth);
+  }, [activePointCount, chartType]);
+
+  const handleRegionToggle = (region: string) => {
+    if (region === "ALL") {
+      setSelectedRegions(["ALL"]);
+      return;
+    }
+
+    setSelectedRegions((prev) => {
+      const filtered = prev.filter((value) => value !== "ALL");
+      const hasRegion = filtered.includes(region);
+      let next = hasRegion
+        ? filtered.filter((value) => value !== region)
+        : [...filtered, region];
+
+      if (next.length === 0) {
+        return ["ALL"];
+      }
+
+      next = Array.from(new Set(next));
+      return sortRegionsArray(next);
+    });
+  };
 
   const formatTooltipValue = (value: number) =>
     `${Intl.NumberFormat("vi-VN").format(value)} ${seriesMeta?.unit ?? "đ/kg"}`;
@@ -490,10 +673,10 @@ export default function PriceChart({
       return (
         <div
           style={{
-            backgroundColor: "rgba(11,11,11,0.95)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            backgroundColor: tooltipBg,
+            border: `1px solid ${tooltipBorder}`,
             borderRadius: "16px",
-            color: "#f6f7f9",
+            color: tooltipText,
             padding: "12px 16px",
           }}
         >
@@ -515,7 +698,7 @@ export default function PriceChart({
       return null;
     }
 
-    const basePayload = payload[0]?.payload as { ts?: string } | undefined;
+    const basePayload = payload[0]?.payload as Record<string, unknown> | undefined;
     const ts = basePayload?.ts;
     const date = ts ? new Date(ts) : null;
     const formattedDate = date
@@ -526,28 +709,33 @@ export default function PriceChart({
         })
       : null;
 
-    const regionsWithValue = REGION_ORDER.map((region) => {
+    const regionsWithValue = regionSeriesKeys.map((region) => {
       const item = payload.find((entry) => entry?.dataKey === region && typeof entry.value === "number");
       if (!item || typeof item.value !== "number") {
         return null;
       }
+      const countKey = `${region}__count`;
+      const rawCount = basePayload && typeof basePayload[countKey] === "number" ? (basePayload[countKey] as number) : 1;
       return {
         region,
         value: item.value,
+        count: rawCount,
       };
-    }).filter(Boolean) as Array<{ region: string; value: number }>;
+    }).filter(Boolean) as Array<{ region: string; value: number; count: number }>;
 
     if (regionsWithValue.length === 0) {
       return null;
     }
 
+    const hasAveraged = regionsWithValue.some(({ count }) => count > 1);
+
     return (
       <div
         style={{
-          backgroundColor: "rgba(11,11,11,0.95)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          backgroundColor: tooltipBg,
+          border: `1px solid ${tooltipBorder}`,
           borderRadius: "16px",
-          color: "#f6f7f9",
+          color: tooltipText,
           padding: "12px 16px",
           minWidth: "200px",
         }}
@@ -558,7 +746,9 @@ export default function PriceChart({
           </p>
         ) : null}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          {regionsWithValue.map(({ region, value }) => (
+          {regionsWithValue
+            .sort((a, b) => b.value - a.value)
+            .map(({ region, value }) => (
             <div key={region} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
                 <span
@@ -573,11 +763,16 @@ export default function PriceChart({
                 />
                 {REGION_LABELS[region] ?? region}
               </span>
-              <span style={{ fontSize: 12, color: "#f6f7f9", fontWeight: 500 }}>
+              <span style={{ fontSize: 12, color: tooltipText, fontWeight: 500 }}>
                 {formatTooltipValue(value)}
               </span>
             </div>
           ))}
+          {hasAveraged ? (
+            <span style={{ fontSize: 10, color: "rgba(209,213,219,0.75)" }}>
+              Giá trung bình theo ngày (tổng hợp từ nhiều công ty).
+            </span>
+          ) : null}
         </div>
       </div>
     );
@@ -605,7 +800,8 @@ export default function PriceChart({
         company: String(entry.dataKey),
         value: entry.value as number,
         color: entry.color ?? "#f7c948",
-      }));
+      }))
+      .sort((a, b) => b.value - a.value);
 
     if (companiesWithValue.length === 0) {
       return null;
@@ -614,10 +810,10 @@ export default function PriceChart({
     return (
       <div
         style={{
-          backgroundColor: "rgba(11,11,11,0.95)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          backgroundColor: tooltipBg,
+          border: `1px solid ${tooltipBorder}`,
           borderRadius: "16px",
-          color: "#f6f7f9",
+          color: tooltipText,
           padding: "12px 16px",
           minWidth: "200px",
         }}
@@ -643,7 +839,7 @@ export default function PriceChart({
                 />
                 {company === "null" ? "Chưa phân loại" : company}
               </span>
-              <span style={{ fontSize: 12, color: "#f6f7f9", fontWeight: 500 }}>
+              <span style={{ fontSize: 12, color: tooltipText, fontWeight: 500 }}>
                 {formatTooltipValue(value)}
               </span>
             </div>
@@ -678,10 +874,27 @@ export default function PriceChart({
   }, [seriesOptions, selectedProduct]);
 
   useEffect(() => {
-    if (!regionOptions.includes(selectedRegion)) {
-      setSelectedRegion(regionOptions[0] ?? "ALL");
-    }
-  }, [regionOptions, selectedRegion]);
+    setSelectedRegions((prev) => {
+      const available = new Set(regionOptions);
+      let next = prev.filter((region) => available.has(region));
+
+      if (next.length === 0) {
+        next = ["ALL"];
+      }
+
+      if (next.includes("ALL") && next.length > 1) {
+        next = ["ALL"];
+      }
+
+      const prevKey = prev.join("|");
+      const nextKey = next.join("|");
+      if (prevKey === nextKey) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [regionOptions]);
 
   // Fetch company options based on selected product and region
   useEffect(() => {
@@ -704,8 +917,8 @@ export default function PriceChart({
         }
 
         const params = new URLSearchParams({ series: selectedSeries.id });
-        if (selectedRegion !== "ALL") {
-          params.append("region", selectedRegion);
+        if (!isAllRegionsSelected) {
+          params.append("regions", selectedRegions.join(","));
         }
 
         const response = await fetch(`/api/prices/metadata?${params.toString()}`, {
@@ -735,39 +948,49 @@ export default function PriceChart({
       ignore = true;
       controller.abort();
     };
-  }, [selectedProduct, selectedRegion, seriesOptions]);
+  }, [selectedProduct, regionSelectionKey, seriesOptions, isAllRegionsSelected]);
 
   // Reset company to "ALL" when region is "ALL" to prevent invalid state
   useEffect(() => {
-    if (selectedRegion === "ALL" && selectedCompany !== "ALL") {
+    if (isAllRegionsSelected && selectedCompany !== "ALL") {
       setSelectedCompany("ALL");
     }
-  }, [selectedRegion, selectedCompany]);
+  }, [isAllRegionsSelected, selectedCompany]);
+
+  useEffect(() => {
+    if (isMultiRegionSelected && (selectedCompany === "ALL" || !selectedCompany) && companyOptions.length > 0) {
+      setSelectedCompany(companyOptions[0]);
+    }
+  }, [isMultiRegionSelected, selectedCompany, companyOptions]);
 
   return (
     <div className="theme-panel space-y-4 md:space-y-6 rounded-2xl md:rounded-3xl border p-4 md:p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur">
       <div className="flex flex-col gap-3 md:gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.25em] md:tracking-[0.3em] text-[#f7c948]/70">Chọn dữ liệu</p>
+        <div className="space-y-1 md:space-y-2">
           <h2 className="text-xl md:text-2xl lg:text-3xl font-serif text-[#f6f7f9]">
             {seriesMeta?.name ?? (seriesLoading ? "Đang tải..." : "Không có dữ liệu")}
           </h2>
-          {seriesMeta?.unit ? (
-            <p className="text-xs md:text-sm text-gray-400">
-              Đơn vị: {seriesMeta.unit} · Vùng: {REGION_LABELS[seriesMeta.region] ?? seriesMeta.region}
-            </p>
-          ) : null}
+          <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-400/90">
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 uppercase tracking-[0.25em] text-[#f7c948]/80">
+              {seriesMeta?.unit ?? "VND/kg"}
+            </span>
+            <span className="inline-flex items-center gap-2 text-gray-300">
+              <span className="text-white/40">•</span>
+              <span>{displayRegionLabel}</span>
+            </span>
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-4">
-          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+        <div className="grid gap-3 md:gap-4 md:grid-cols-12">
+          <label className="md:col-span-3 flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
             Sản phẩm
             <select
               value={selectedProduct}
               onChange={(event) => {
                 setSelectedProduct(event.target.value);
-                setSelectedRegion("ALL");
+                setSelectedRegions(["ALL"]);
+                setSelectedCompany("ALL");
               }}
-              className="theme-field mt-1 w-full md:min-w-[160px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
+              className="theme-field mt-1 w-full rounded-full border px-3 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
               disabled={seriesLoading || !!seriesError}
             >
               {productOptions.length === 0 ? (
@@ -782,33 +1005,13 @@ export default function PriceChart({
             </select>
           </label>
 
-          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
-            Vùng miền
-            <select
-              value={selectedRegion}
-              onChange={(event) => {
-                setSelectedRegion(event.target.value);
-                // Reset company when region changes
-                setSelectedCompany("ALL");
-              }}
-              className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
-              disabled={seriesLoading || !!seriesError}
-            >
-              {regionOptions.map((region) => (
-                <option key={region} value={region} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
-                  {REGION_LABELS[region] ?? region}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+          <label className="md:col-span-3 flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
             Công ty
             <select
               value={selectedCompany}
               onChange={(event) => setSelectedCompany(event.target.value)}
-              className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
-              disabled={seriesLoading || !!seriesError || (selectedRegion === "ALL" && companyOptions.length > 0)}
+              className="theme-field mt-1 w-full rounded-full border px-3 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
+              disabled={seriesLoading || !!seriesError}
             >
               <option value="ALL" className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
                 {companyOptions.length === 0 ? "Không có dữ liệu" : "Tất cả công ty"}
@@ -821,19 +1024,17 @@ export default function PriceChart({
             </select>
           </label>
 
-          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+          <label className="md:col-span-3 flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
             Thời gian
             <select
               value={selectedRange.value}
               onChange={(event) => {
-                const option = rangeOptions.find(
-                  (item) => item.value === Number(event.target.value)
-                );
+                const option = rangeOptions.find((item) => item.value === Number(event.target.value));
                 if (option) {
                   setSelectedRange(option);
                 }
               }}
-              className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
+              className="theme-field mt-1 w-full rounded-full border px-3 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
             >
               {rangeOptions.map((option) => (
                 <option key={option.value} value={option.value} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
@@ -843,12 +1044,12 @@ export default function PriceChart({
             </select>
           </label>
 
-          <label className="flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+          <label className="md:col-span-3 flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
             Biểu đồ
             <select
               value={chartType}
               onChange={(event) => setChartType(event.target.value as ChartType)}
-              className="theme-field mt-1 w-full md:min-w-[140px] rounded-full border px-2 md:px-4 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
+              className="theme-field mt-1 w-full rounded-full border px-3 py-2 text-xs md:text-sm outline-none transition focus:border-[#f7c948]"
             >
               {chartTypeOptions.map((option) => (
                 <option key={option.value} value={option.value} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
@@ -857,111 +1058,159 @@ export default function PriceChart({
               ))}
             </select>
           </label>
+
+          <div className="md:col-span-12 flex flex-col text-[10px] md:text-xs uppercase tracking-wide text-gray-400">
+            Vùng miền
+            <div className="mt-2 flex flex-wrap gap-2">
+              {regionOptions.map((region) => {
+                const isActive = region === "ALL"
+                  ? isAllRegionsSelected
+                  : !isAllRegionsSelected && selectedRegions.includes(region);
+                return (
+                  <button
+                    key={region}
+                    type="button"
+                    onClick={() => handleRegionToggle(region)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                      isActive
+                        ? "border-transparent bg-[#f7c948] text-black shadow-[0_4px_16px_rgba(247,201,72,0.35)]"
+                        : "border-white/20 text-gray-200 hover:border-[#f7c948]/60"
+                    }`}
+                    disabled={seriesLoading || !!seriesError}
+                  >
+                    {region === "ALL" ? "Tất cả vùng" : REGION_LABELS[region] ?? region}
+                  </button>
+                );
+              })}
+            </div>
+            {isMultiRegionSelected ? (
+              <span className="mt-1 text-[10px] text-gray-400">
+                {selectedCompany === "ALL"
+                  ? "Chọn một công ty để so sánh giữa các vùng."
+                  : `So sánh ${selectedCompany} tại ${displayRegionLabel}.`}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="h-[280px] md:h-[340px] w-full">
-        {seriesError ? (
-          <div className="flex h-full items-center justify-center text-sm text-red-400">
-            {seriesError}
-          </div>
-        ) : loading ? (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">
-            Đang tải dữ liệu…
-          </div>
-        ) : error ? (
-          <div className="flex h-full items-center justify-center text-sm text-red-400">
-            {error}
-          </div>
-        ) : (selectedRegion === "ALL" ? comparisonChartData.length === 0 : (companyComparisonChartData.length > 0 ? companyComparisonChartData.length === 0 : chartData.length === 0)) ? (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">
-            Chưa có dữ liệu cho lựa chọn này.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            {chartType === "line" ? (
-              selectedRegion === "ALL" ? (
+      <div className="h-[280px] md:h-[340px] w-full overflow-x-auto md:overflow-visible">
+        <div className="h-full w-full" style={{ minWidth: `${minChartWidth}px` }}>
+          {seriesError ? (
+            <div className="flex h-full items-center justify-center text-sm text-red-400">
+              {seriesError}
+            </div>
+          ) : loading ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">
+              Đang tải dữ liệu…
+            </div>
+          ) : error ? (
+            <div className="flex h-full items-center justify-center text-sm text-red-400">
+              {error}
+            </div>
+          ) : ((isAllRegionsSelected || isMultiRegionSelected)
+              ? comparisonChartData.length === 0
+              : (companyComparisonChartData.length > 0 ? companyComparisonChartData.length === 0 : chartData.length === 0)) ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">
+              Chưa có dữ liệu cho lựa chọn này.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === "line" ? (
+              (isAllRegionsSelected || isMultiRegionSelected) ? (
                 <LineChart data={comparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{
+                      stroke:
+                        theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)",
+                      strokeWidth: 1.5,
+                    }}
                     content={<ComparisonTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="line"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
                   <Line
                     type="monotone"
                     dataKey="MIEN_BAC"
-                    stroke="#f7c948"
+                    stroke={REGION_COLORS.MIEN_BAC}
                     strokeWidth={2.5}
                     dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: "#f7c948" }}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_BAC }}
                     name="MIEN_BAC"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="MIEN_TRUNG"
-                    stroke="#b30d0d"
+                    stroke={REGION_COLORS.MIEN_TRUNG}
                     strokeWidth={2.5}
                     dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: "#b30d0d" }}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_TRUNG }}
                     name="MIEN_TRUNG"
                     connectNulls
                   />
                   <Line
                     type="monotone"
                     dataKey="MIEN_NAM"
-                    stroke="#60a5fa"
+                    stroke={REGION_COLORS.MIEN_NAM}
                     strokeWidth={2.5}
                     dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: "#60a5fa" }}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_NAM }}
                     name="MIEN_NAM"
                     connectNulls
                   />
                 </LineChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <LineChart data={companyComparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{
+                      stroke:
+                        theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)",
+                      strokeWidth: 1.5,
+                    }}
                     content={<CompanyTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="line"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
                   />
                   {Object.keys(companyComparisonData).map((company, index) => (
                     <Line
@@ -979,61 +1228,69 @@ export default function PriceChart({
                 </LineChart>
               ) : (
                 <LineChart data={chartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{
+                      stroke:
+                        theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)",
+                      strokeWidth: 1.5,
+                    }}
                     content={<CustomTooltip />}
                   />
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#f7c948"
+                    stroke={REGION_COLORS.MIEN_BAC}
                     strokeWidth={2.5}
                     dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: "#b30d0d" }}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_TRUNG }}
                   />
                 </LineChart>
               )
             ) : chartType === "area" ? (
-              selectedRegion === "ALL" ? (
+              (isAllRegionsSelected || isMultiRegionSelected) ? (
                 <AreaChart data={comparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{ stroke: theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
                     content={<ComparisonTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
                   <defs>
                     <linearGradient id="colorMienBac" x1="0" y1="0" x2="0" y2="1">
@@ -1041,18 +1298,18 @@ export default function PriceChart({
                       <stop offset="95%" stopColor="#f7c948" stopOpacity={0.1} />
                     </linearGradient>
                     <linearGradient id="colorMienTrung" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#b30d0d" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#b30d0d" stopOpacity={0.1} />
+                      <stop offset="5%" stopColor="#B06A55" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#B06A55" stopOpacity={0.1} />
                     </linearGradient>
                     <linearGradient id="colorMienNam" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1} />
+                      <stop offset="5%" stopColor="#4E7C9A" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#4E7C9A" stopOpacity={0.1} />
                     </linearGradient>
                   </defs>
                   <Area
                     type="monotone"
                     dataKey="MIEN_BAC"
-                    stroke="#f7c948"
+                    stroke={REGION_COLORS.MIEN_BAC}
                     strokeWidth={2.5}
                     fill="url(#colorMienBac)"
                     fillOpacity={0.6}
@@ -1062,7 +1319,7 @@ export default function PriceChart({
                   <Area
                     type="monotone"
                     dataKey="MIEN_TRUNG"
-                    stroke="#b30d0d"
+                    stroke={REGION_COLORS.MIEN_TRUNG}
                     strokeWidth={2.5}
                     fill="url(#colorMienTrung)"
                     fillOpacity={0.6}
@@ -1072,7 +1329,7 @@ export default function PriceChart({
                   <Area
                     type="monotone"
                     dataKey="MIEN_NAM"
-                    stroke="#60a5fa"
+                    stroke={REGION_COLORS.MIEN_NAM}
                     strokeWidth={2.5}
                     fill="url(#colorMienNam)"
                     fillOpacity={0.6}
@@ -1082,29 +1339,31 @@ export default function PriceChart({
                 </AreaChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <AreaChart data={companyComparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{ stroke: theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
                     content={<CompanyTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
                   />
                   <defs>
                     {Object.keys(companyComparisonData).map((company, index) => (
@@ -1130,29 +1389,31 @@ export default function PriceChart({
                 </AreaChart>
               ) : (
                 <AreaChart data={chartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ stroke: "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
+                    cursor={{ stroke: theme === "light" ? "rgba(15,23,42,0.1)" : "rgba(247,201,72,0.35)", strokeWidth: 1.5 }}
                     content={<CustomTooltip />}
                   />
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#f7c948"
+                    stroke={REGION_COLORS.MIEN_BAC}
                     strokeWidth={2.5}
                     fill="url(#colorValue)"
                     fillOpacity={0.6}
@@ -1166,76 +1427,80 @@ export default function PriceChart({
                 </AreaChart>
               )
             ) : (
-              selectedRegion === "ALL" ? (
+              (isAllRegionsSelected || isMultiRegionSelected) ? (
                 <BarChart data={comparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(247,201,72,0.1)" }}
+                    cursor={{ fill: theme === "light" ? "rgba(15,23,42,0.06)" : "rgba(247,201,72,0.1)" }}
                     content={<ComparisonTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
                   <Bar
                     dataKey="MIEN_BAC"
-                    fill="#f7c948"
+                    fill={REGION_COLORS.MIEN_BAC}
                     radius={[8, 8, 0, 0]}
                     name="MIEN_BAC"
                   />
                   <Bar
                     dataKey="MIEN_TRUNG"
-                    fill="#b30d0d"
+                    fill={REGION_COLORS.MIEN_TRUNG}
                     radius={[8, 8, 0, 0]}
                     name="MIEN_TRUNG"
                   />
                   <Bar
                     dataKey="MIEN_NAM"
-                    fill="#60a5fa"
+                    fill={REGION_COLORS.MIEN_NAM}
                     radius={[8, 8, 0, 0]}
                     name="MIEN_NAM"
                   />
                 </BarChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <BarChart data={companyComparisonChartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(247,201,72,0.1)" }}
+                    cursor={{ fill: theme === "light" ? "rgba(15,23,42,0.06)" : "rgba(247,201,72,0.1)" }}
                     content={<CompanyTooltip />}
                   />
                   <Legend
                     wrapperStyle={{ paddingTop: "20px" }}
                     iconType="rect"
-                    formatter={(value) => <span style={{ color: "#d1d5db", fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
+                    formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{value === "null" ? "Chưa phân loại" : value}</span>}
                   />
                   {Object.keys(companyComparisonData).map((company, index) => (
                     <Bar
@@ -1249,45 +1514,48 @@ export default function PriceChart({
                 </BarChart>
               ) : (
                 <BarChart data={chartData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
                   <XAxis
                     dataKey="dateLabel"
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                   />
                   <YAxis
-                    stroke="#d1d5db"
+                    stroke={axisColor}
                     tickLine={false}
+                    tick={{ fill: axisColor }}
                     axisLine={false}
                     fontSize={12}
                     tickFormatter={(value: number) => Intl.NumberFormat("vi-VN").format(value / 1000) + "k"}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(247,201,72,0.1)" }}
+                    cursor={{ fill: theme === "light" ? "rgba(15,23,42,0.06)" : "rgba(247,201,72,0.1)" }}
                     content={<CustomTooltip />}
                   />
                   <Bar
                     dataKey="value"
-                    fill="#f7c948"
+                    fill={REGION_COLORS.MIEN_BAC}
                     radius={[8, 8, 0, 0]}
                   />
                 </BarChart>
               )
             )}
-          </ResponsiveContainer>
-        )}
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       <PriceTable
         series={seriesMeta ? { code: seriesMeta.code, name: seriesMeta.name, unit: seriesMeta.unit } : null}
-        rangeLabel={`${selectedRange.value} ngày`}
+        rangeLabel={selectedRange.label}
         data={tableData}
         loading={loading}
         error={error ?? seriesError}
-        regionLabel={seriesMeta ? REGION_LABELS[seriesMeta.region] ?? seriesMeta.region : undefined}
-        regionValue={seriesMeta?.region}
+        regionLabel={displayRegionLabel}
+        regionValue={tableRegionValue}
       />
     </div>
   );

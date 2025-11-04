@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 
 import prisma from "@/lib/prisma";
 import { REGION_KEYS, deriveProductFromCode, normalizeRegion } from "@/lib/seriesCode";
+import { Prisma } from "@prisma/client";
 
 const DEFAULT_REVALIDATE_SECONDS = 120;
 
@@ -159,4 +160,54 @@ export async function getPricePointsForProduct(
     },
     dataByRegion: Object.fromEntries(dataByRegion.entries()),
   };
+}
+
+export type LatestPriceSnapshot = {
+  seriesId: string;
+  seriesCode: string;
+  seriesName: string;
+  unit: string;
+  region: string;
+  company: string | null;
+  value: number;
+  recordedAt: string;
+};
+
+export async function getLatestPriceSnapshot(): Promise<LatestPriceSnapshot[]> {
+  const rows: Array<{
+    series_id: string;
+    region: string;
+    company: string | null;
+    value: Prisma.Decimal;
+    ts: Date;
+    code: string;
+    name: string;
+    unit: string;
+  }> = await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT DISTINCT ON (pp."seriesId", pp."region", COALESCE(pp."company", ''))
+        pp."seriesId" as series_id,
+        pp."region" as region,
+        pp."company" as company,
+        pp."value" as value,
+        pp."ts" as ts,
+        s.code,
+        s.name,
+        s.unit
+      FROM "PricePoint" pp
+      INNER JOIN "PriceSeries" s ON s.id = pp."seriesId"
+      ORDER BY pp."seriesId", pp."region", COALESCE(pp."company", ''), pp."ts" DESC
+    `
+  );
+
+  return rows.map((row) => ({
+    seriesId: row.series_id,
+    seriesCode: row.code,
+    seriesName: row.name,
+    unit: row.unit,
+    region: String(normalizeRegion(row.region ?? "")).toUpperCase(),
+    company: row.company,
+    value: toNumber(row.value),
+    recordedAt: row.ts.toISOString(),
+  }));
 }

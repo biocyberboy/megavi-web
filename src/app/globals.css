@@ -160,6 +160,17 @@ body {
   color: #4b5563 !important;
 }
 
+[data-theme="light"] .latest-snapshot-panel {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: #1f2933 !important;
+}
+
+[data-theme="light"] .latest-snapshot-panel table thead {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+}
+
+
 .theme-panel .text-\[\#f7c948\],
 .theme-panel .text-\[\#f7c948\]\/70 {
   color: var(--accent) !important;
@@ -246,6 +257,18 @@ body {
   color: var(--accent);
 }
 
+.hero-outline-button {
+  color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.hero-outline-button:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  background: rgba(0, 0, 0, 0.2);
+}
+
 [data-theme="light"] [data-theme-surface] {
   background: #f6f7f9;
   color: #111111;
@@ -270,4 +293,58 @@ body {
 
 [data-theme="light"] .theme-surface .text-gray-400 {
   color: #374151 !important;
+}
+
+
+[data-theme="light"] .latest-snapshot-table thead {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
+
+[data-theme="light"] .latest-snapshot-table tbody tr {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .latest-snapshot-table tbody tr:last-child {
+  border-bottom: none !important;
+}
+
+[data-theme="light"] .latest-snapshot-table td {
+  color: #1f2933 !important;
+}
+
+[data-theme="light"] .latest-snapshot-table td.text-gray-400 {
+  color: #4b5563 !important;
+}
+
+.latest-snapshot-table tr.region-header {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.latest-snapshot-table tbody tr:not(.region-header) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.latest-snapshot-table tbody tr:last-child:not(.region-header) {
+  border-bottom: none;
+}
+
+.latest-snapshot-table tr.region-header td {
+  letter-spacing: 0.25em;
+  border-top: 1px solid rgba(228, 194, 111, 0.45);
+  border-bottom: 1px solid rgba(228, 194, 111, 0.25);
+}
+
+[data-theme="light"] .latest-snapshot-table tr.region-header {
+  background: rgba(15, 23, 42, 0.06) !important;
+  color: #1f2933 !important;
+}
+
+[data-theme="light"] .latest-snapshot-table tr.region-header td {
+  border-top: 1px solid rgba(179, 13, 13, 0.4) !important;
+  border-bottom: 1px solid rgba(179, 13, 13, 0.25) !important;
+}
+
+[data-theme="light"] .latest-snapshot-table tbody tr {
+  background-color: transparent !important;
 }

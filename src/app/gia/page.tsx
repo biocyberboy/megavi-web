@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
-import PriceChart from "@/components/PriceChart";
-import { getPricePointsForProduct, getSeriesWithRegions } from "@/lib/data/price";
+import PriceDashboardTabs from "@/components/PriceDashboardTabs";
+import { getLatestPriceSnapshot, getPricePointsForProduct, getSeriesWithRegions } from "@/lib/data/price";
 
 type InitialPoint = { ts: string; value: number; source: string | null; region?: string };
 
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: "Theo dõi biểu đồ giá gia cầm Việt Nam với dữ liệu giả lập từ MEGAVI.",
 };
 
-const DEFAULT_RANGE_DAYS = 30;
+const DEFAULT_RANGE_DAYS = 7;
 const DEFAULT_REGION = "ALL";
 
 export default async function PriceDashboardPage() {
@@ -26,6 +26,7 @@ export default async function PriceDashboardPage() {
   } | null = null;
   let initialComparisonData: Record<string, InitialPoint[]> = {};
   let initialData: InitialPoint[] = [];
+  let latestSnapshot = await getLatestPriceSnapshot();
 
   if (defaultProduct) {
     const initialPayload = await getPricePointsForProduct(defaultProduct, DEFAULT_REGION, DEFAULT_RANGE_DAYS);
@@ -45,14 +46,14 @@ export default async function PriceDashboardPage() {
         <header className="text-center px-2">
           <p className="text-xs uppercase tracking-[0.25em] md:tracking-[0.35em] text-[#f7c948]/70">BẢNG GIÁ</p>
           <h1 className="mt-3 md:mt-4 text-2xl md:text-4xl lg:text-6xl font-serif text-[#f6f7f9]">
-            📊 Biểu đồ Giá Gia Cầm Việt Nam
+            Giá Gia Cầm Việt Nam
           </h1>
           <p className="mt-3 md:mt-4 text-xs md:text-sm lg:text-base text-gray-300">
             Dữ liệu cập nhật liên tục, phản ánh xu hướng giá gia cầm toàn quốc.
           </p>
         </header>
 
-        <PriceChart
+        <PriceDashboardTabs
           initialSeriesOptions={seriesOptions}
           initialProduct={defaultProduct}
           initialRegion={DEFAULT_REGION}
@@ -60,6 +61,7 @@ export default async function PriceDashboardPage() {
           initialSeriesMeta={initialSeriesMeta}
           initialComparisonData={initialComparisonData}
           initialData={initialData}
+          initialSnapshot={latestSnapshot}
         />
       </div>
     </main>

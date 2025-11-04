@@ -122,30 +122,50 @@ export default function BlogForm() {
       return;
     }
 
+    const handleLoad = () => {
+      setHelperMessage(null);
+      initializeEditor();
+    };
+
+    const handleError = () => {
+      setHelperMessage("Không tải được CKEditor. Vui lòng kiểm tra kết nối.");
+    };
+
     if (window.CKEDITOR) {
       initializeEditor();
       return;
     }
 
-    if (!scriptRef.current) {
-      const script = document.createElement("script");
-      script.src = CKEDITOR_SCRIPT_URL;
-      script.onload = initializeEditor;
-      script.onerror = () => {
-        setHelperMessage("Không tải được CKEditor. Vui lòng kiểm tra kết nối.");
-      };
-      document.body.appendChild(script);
-      scriptRef.current = script;
+    let script = scriptRef.current;
+    if (!script) {
+      script = document.querySelector<HTMLScriptElement>('script[data-ckeditor="true"]') ?? null;
     }
 
+    if (!script) {
+      script = document.createElement("script");
+      script.src = CKEDITOR_SCRIPT_URL;
+      script.async = true;
+      script.defer = true;
+      script.setAttribute("data-ckeditor", "true");
+      script.addEventListener("load", handleLoad);
+      script.addEventListener("error", handleError);
+      document.body.appendChild(script);
+    } else {
+      script.addEventListener("load", handleLoad);
+      script.addEventListener("error", handleError);
+      if ((script as any).readyState === "complete" || window.CKEDITOR) {
+        handleLoad();
+      }
+    }
+
+    scriptRef.current = script;
+
     return () => {
+      script?.removeEventListener("load", handleLoad);
+      script?.removeEventListener("error", handleError);
       if (editorRef.current) {
         editorRef.current.destroy();
         editorRef.current = null;
-      }
-      if (scriptRef.current) {
-        scriptRef.current.onload = null;
-        scriptRef.current.onerror = null;
       }
     };
   }, [initializeEditor]);

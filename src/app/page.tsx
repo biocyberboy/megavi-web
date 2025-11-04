@@ -60,7 +60,7 @@ export default async function Home() {
             </a>
             <Link
               href="/blog"
-              className="w-full md:w-auto theme-outline-button inline-block rounded-full px-6 py-2.5 md:py-3 text-sm font-medium"
+              className="w-full md:w-auto theme-outline-button hero-outline-button inline-block rounded-full px-6 py-2.5 md:py-3 text-sm font-medium"
             >
               Đọc bản tin mới nhất
             </Link>

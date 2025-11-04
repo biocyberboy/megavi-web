@@ -92,7 +92,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
           <p className="text-[10px] md:text-xs uppercase tracking-[0.25em] md:tracking-[0.3em] text-[#f7c948]/70">Bảng dữ liệu</p>
           <h3 className="text-base md:text-lg font-serif text-[#f6f7f9]">{series.name}</h3>
           <p className="text-[10px] md:text-xs text-gray-400">
-            Mã: {series.code.toUpperCase()} · Vùng: {headerRegionLabel} · Khung {rangeLabel}
+            Vùng: {headerRegionLabel} · Khung {rangeLabel}
           </p>
         </div>
         <Link
@@ -124,10 +124,10 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
               pageData.map((point, idx) => (
                 <tr key={point.region ? `${point.ts}-${point.region}` : `${point.ts}-${idx}`} className="border-b border-white/5 last:border-none">
                   <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400 whitespace-nowrap">{formatRegionLabel(point.region)}</td>
-                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-200 whitespace-nowrap">
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-200 whitespace-nowrap font-medium">
                     {new Date(point.ts).toLocaleDateString("vi-VN", {
                       day: "2-digit",
-                      month: "long",
+                      month: "2-digit",
                       year: "numeric",
                     })}
                   </td>
