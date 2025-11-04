@@ -221,15 +221,24 @@ export async function deletePricePoint(formData: FormData) {
   const normalizedCompany = typeof company === "string" && company.length > 0 ? company.trim() : null;
 
   try {
-    await prisma.pricePoint.delete({
+    // Find the record first
+    const record = await prisma.pricePoint.findFirst({
       where: {
-        seriesId_region_company_ts: {
-          seriesId,
-          region: region.trim().toUpperCase(),
-          company: normalizedCompany,
-          ts: timestamp,
-        },
+        seriesId,
+        region: region.trim().toUpperCase(),
+        company: normalizedCompany,
+        ts: timestamp,
       },
+    });
+
+    if (!record) {
+      console.error("[admin:deletePricePoint] Record not found");
+      return;
+    }
+
+    // Delete by id
+    await prisma.pricePoint.delete({
+      where: { id: record.id },
     });
   } catch (error) {
     console.error("[admin:deletePricePoint]", error);
