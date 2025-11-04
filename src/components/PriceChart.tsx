@@ -700,7 +700,7 @@ const tableData = useMemo(() => {
 
     const basePayload = payload[0]?.payload as Record<string, unknown> | undefined;
     const ts = basePayload?.ts;
-    const date = ts ? new Date(ts) : null;
+    const date = ts && typeof ts === "string" ? new Date(ts) : null;
     const formattedDate = date
       ? date.toLocaleDateString("vi-VN", {
           day: "2-digit",
