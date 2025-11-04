@@ -950,13 +950,6 @@ const tableData = useMemo(() => {
     };
   }, [selectedProduct, regionSelectionKey, seriesOptions, isAllRegionsSelected]);
 
-  // Reset company to "ALL" when region is "ALL" to prevent invalid state
-  useEffect(() => {
-    if (isAllRegionsSelected && selectedCompany !== "ALL") {
-      setSelectedCompany("ALL");
-    }
-  }, [isAllRegionsSelected, selectedCompany]);
-
   useEffect(() => {
     if (isMultiRegionSelected && (selectedCompany === "ALL" || !selectedCompany) && companyOptions.length > 0) {
       setSelectedCompany(companyOptions[0]);
