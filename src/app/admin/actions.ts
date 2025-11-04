@@ -163,7 +163,7 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
         seriesId_region_company_ts: {
           seriesId,
           region: normalizedRegion,
-          company: normalizedCompany,
+          company: normalizedCompany ?? null,
           ts: pointDate,
         },
       },
