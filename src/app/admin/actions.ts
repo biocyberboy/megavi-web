@@ -158,28 +158,38 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
     const normalizedRegion = region.trim().toUpperCase();
     const normalizedCompany = company && company.length > 0 ? company.trim() : null;
 
-    await prisma.pricePoint.upsert({
+    // Check if record exists
+    const existingRecord = await prisma.pricePoint.findFirst({
       where: {
-        seriesId_region_company_ts: {
-          seriesId,
-          region: normalizedRegion,
-          company: normalizedCompany ?? null,
-          ts: pointDate,
-        },
-      },
-      update: {
-        value: Number(value),
-        source: source || null,
-      },
-      create: {
         seriesId,
         region: normalizedRegion,
         company: normalizedCompany,
         ts: pointDate,
-        value: Number(value),
-        source: source || null,
       },
     });
+
+    if (existingRecord) {
+      // Update existing record
+      await prisma.pricePoint.update({
+        where: { id: existingRecord.id },
+        data: {
+          value: Number(value),
+          source: source || null,
+        },
+      });
+    } else {
+      // Create new record
+      await prisma.pricePoint.create({
+        data: {
+          seriesId,
+          region: normalizedRegion,
+          company: normalizedCompany,
+          ts: pointDate,
+          value: Number(value),
+          source: source || null,
+        },
+      });
+    }
 
     revalidatePath("/admin");
     revalidatePath("/gia");
