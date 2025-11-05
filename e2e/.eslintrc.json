@@ -1,0 +1,8 @@
+{
+  "extends": ["plugin:playwright/recommended"],
+  "rules": {
+    "playwright/no-wait-for-timeout": "warn",
+    "playwright/no-element-handle": "error",
+    "playwright/no-eval": "error"
+  }
+}

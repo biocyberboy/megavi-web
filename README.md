@@ -61,3 +61,37 @@ After Vercel finishes deploying (expected URL `https://megavi-web.vercel.app`):
 - `pnpm lint` – Run ESLint
 - `pnpm build` – Production build
 - `pnpm start` – Serve production build locally
+- `pnpm test:e2e` – Run E2E tests with Playwright
+- `pnpm test:e2e:ui` – Run E2E tests in interactive UI mode
+- `pnpm test:e2e:report` – View last test report
+
+## Testing
+
+This project includes a comprehensive E2E test suite using Playwright.
+
+### Quick start
+```bash
+# Run smoke tests (recommended before deploy)
+pnpm test:e2e smoke.spec.ts
+
+# Run all tests
+pnpm test:e2e
+
+# Interactive mode (best for development)
+pnpm test:e2e:ui
+```
+
+### Test coverage
+- ✅ Homepage & Hero section
+- ✅ Price dashboard with charts
+- ✅ Blog listing & posts
+- ✅ Admin panel
+- ✅ API endpoints
+- ✅ Navigation flows
+- ✅ Performance metrics
+- ✅ Accessibility checks
+
+For detailed documentation, see:
+- `e2e/README.md` - Complete testing guide
+- `e2e/QUICK_START.md` - Quick reference
+- `TEST_SUMMARY.md` - Test coverage summary

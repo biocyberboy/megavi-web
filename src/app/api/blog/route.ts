@@ -32,9 +32,13 @@ export async function GET(request: NextRequest) {
         ...post,
         summary: post.summary ?? "",
         coverImage: post.coverImage ?? "",
-        publishedAt: post.publishedAt?.toISOString() ?? null,
-        createdAt: post.createdAt.toISOString(),
-        updatedAt: post.updatedAt.toISOString(),
+        publishedAt: post.publishedAt 
+          ? (post.publishedAt instanceof Date 
+              ? post.publishedAt.toISOString() 
+              : post.publishedAt)
+          : null,
+        createdAt: post.createdAt instanceof Date ? post.createdAt.toISOString() : post.createdAt,
+        updatedAt: post.updatedAt instanceof Date ? post.updatedAt.toISOString() : post.updatedAt,
       })),
       {
         headers: {
