@@ -44,6 +44,8 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
   const [data, setData] = useState<SnapshotEntry[]>(initialData);
   const [loading, setLoading] = useState(initialData.length === 0);
   const [error, setError] = useState<string | null>(null);
+  const [showSeriesSelector, setShowSeriesSelector] = useState(false);
+  const [selectedSeriesIds, setSelectedSeriesIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -98,6 +100,34 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
     }));
   }, [data]);
 
+  const handleOpenSelector = () => {
+    // Select all series by default when opening
+    if (selectedSeriesIds.size === 0) {
+      setSelectedSeriesIds(new Set(grouped.map((g) => g.seriesId)));
+    }
+    setShowSeriesSelector(true);
+  };
+
+  const handleToggleSeries = (seriesId: string) => {
+    setSelectedSeriesIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(seriesId)) {
+        next.delete(seriesId);
+      } else {
+        next.add(seriesId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedSeriesIds(new Set(grouped.map((g) => g.seriesId)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedSeriesIds(new Set());
+  };
+
   const handleCapture = async () => {
     if (!containerRef.current) return;
 
@@ -105,18 +135,95 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
       const dataUrl = await toPng(containerRef.current, {
         cacheBust: true,
         backgroundColor: "#090909",
+        pixelRatio: 2, // Higher quality
       });
       const link = document.createElement("a");
       link.download = `bang-gia-moi-nhat-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;
       link.click();
+      setShowSeriesSelector(false);
     } catch (err) {
       console.error("Failed to capture snapshot", err);
       alert("Không thể chụp ảnh bảng giá. Vui lòng thử lại.");
     }
   };
 
+  const filteredGrouped = useMemo(() => {
+    if (selectedSeriesIds.size === 0) return grouped;
+    return grouped.filter((g) => selectedSeriesIds.has(g.seriesId));
+  }, [grouped, selectedSeriesIds]);
+
   return (
+    <>
+      {/* Series Selector Modal */}
+      {showSeriesSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="theme-panel w-full max-w-md rounded-3xl border p-6 shadow-2xl">
+            <div className="mb-4">
+              <h3 className="text-lg font-serif text-[#f6f7f9]">Chọn series để chụp ảnh</h3>
+              <p className="mt-1 text-xs text-gray-400">
+                Chọn các series bạn muốn xuất hiện trong ảnh
+              </p>
+            </div>
+
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="flex-1 rounded-full border border-white/15 px-3 py-2 text-xs text-gray-300 transition hover:border-[#f7c948] hover:text-[#f7c948]"
+              >
+                Chọn tất cả
+              </button>
+              <button
+                type="button"
+                onClick={handleDeselectAll}
+                className="flex-1 rounded-full border border-white/15 px-3 py-2 text-xs text-gray-300 transition hover:border-red-400 hover:text-red-400"
+              >
+                Bỏ chọn tất cả
+              </button>
+            </div>
+
+            <div className="max-h-[300px] space-y-2 overflow-y-auto">
+              {grouped.map((group) => (
+                <label
+                  key={group.seriesId}
+                  className="flex cursor-pointer items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition hover:border-[#f7c948]/30 hover:bg-white/10"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSeriesIds.has(group.seriesId)}
+                    onChange={() => handleToggleSeries(group.seriesId)}
+                    className="h-4 w-4 rounded border-white/20 bg-white/10 text-[#f7c948] focus:ring-[#f7c948] focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#f6f7f9]">{group.seriesName}</p>
+                    <p className="text-xs text-gray-400">{group.seriesCode}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSeriesSelector(false)}
+                className="flex-1 rounded-full border border-white/15 px-4 py-2 text-sm text-gray-300 transition hover:border-gray-400 hover:text-gray-100"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={handleCapture}
+                disabled={selectedSeriesIds.size === 0}
+                className="flex-1 rounded-full bg-[#f7c948] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#f7c948]/80 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Chụp ảnh ({selectedSeriesIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
@@ -125,7 +232,7 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
         </div>
         <button
           type="button"
-          onClick={handleCapture}
+          onClick={handleOpenSelector}
           className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs text-gray-200 transition hover:border-[#f7c948] hover:text-[#f7c948]"
         >
           <span className="relative flex h-5 w-6 items-center justify-center text-current">
@@ -150,7 +257,7 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
           <p className="text-sm text-gray-400">Chưa có dữ liệu.</p>
         ) : (
           <div className="space-y-6 text-sm">
-            {grouped.map((group) => {
+            {filteredGrouped.map((group) => {
               const regionGroups = new Map<string, SnapshotEntry[]>();
               group.entries.forEach((entry) => {
                 const list = regionGroups.get(entry.region) ?? [];
@@ -209,5 +316,6 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
         )}
       </div>
     </div>
+    </>
   );
 }
