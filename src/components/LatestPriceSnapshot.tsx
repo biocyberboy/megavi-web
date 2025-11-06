@@ -197,7 +197,6 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
                   />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-[#f6f7f9]">{group.seriesName}</p>
-                    <p className="text-xs text-gray-400">{group.seriesCode}</p>
                   </div>
                 </label>
               ))}
