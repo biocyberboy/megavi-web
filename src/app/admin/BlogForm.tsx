@@ -83,22 +83,10 @@ export default function BlogForm() {
   }, []);
 
   const initializeEditor = useCallback(() => {
-    if (!textareaRef.current) {
-      console.log('[CKEditor] Textarea ref not ready');
-      return;
-    }
-    
-    if (!window.CKEDITOR) {
-      console.log('[CKEditor] CKEDITOR not loaded yet');
-      return;
-    }
-    
-    if (editorRef.current) {
-      console.log('[CKEditor] Editor already initialized');
+    if (!textareaRef.current || !window.CKEDITOR || editorRef.current) {
       return;
     }
 
-    console.log('[CKEditor] Initializing editor...');
     const instance = window.CKEDITOR.replace(textareaRef.current, {
       removePlugins: "elementspath",
       extraPlugins: "autogrow",
@@ -127,8 +115,6 @@ export default function BlogForm() {
     instance.on("change", () => {
       syncEditorData(instance);
     });
-    
-    console.log('[CKEditor] Editor initialized successfully');
   }, [syncEditorData]);
 
   useEffect(() => {
@@ -137,23 +123,18 @@ export default function BlogForm() {
     }
 
     const handleLoad = () => {
-      console.log('[CKEditor] Script loaded successfully');
       setHelperMessage(null);
       initializeEditor();
     };
 
     const handleError = () => {
-      console.error('[CKEditor] Failed to load script');
       setHelperMessage("Không tải được CKEditor. Vui lòng kiểm tra kết nối.");
     };
 
     if (window.CKEDITOR) {
-      console.log('[CKEditor] Already available, initializing immediately');
       initializeEditor();
       return;
     }
-    
-    console.log('[CKEditor] Loading script from CDN...');
 
     let script = scriptRef.current;
     if (!script) {
