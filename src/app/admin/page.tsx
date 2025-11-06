@@ -7,6 +7,7 @@ import BlogForm from "./BlogForm";
 import ClientGate from "./ClientGate";
 import PriceForm from "./PriceForm";
 import SeriesForm from "./SeriesForm";
+import DeleteForm from "./DeleteForm";
 import { deleteBlogPost, deletePricePoint, deleteSeries } from "./actions";
 
 export const metadata: Metadata = {
@@ -50,6 +51,7 @@ type PricePointSummary = {
   value: number;
   source: string | null;
   region: string;
+  company: string | null;
   series: {
     id: string;
     name: string;
@@ -183,20 +185,18 @@ export default async function AdminPage() {
                   <li>Chưa có series nào.</li>
                 ) : (
                   seriesOptions.map((item) => (
-                    <li key={item.id} className="flex items-center justify_between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <li key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                       <div>
                         <p className="font-medium text-white">{item.name}</p>
                         <p className="text-xs uppercase tracking-[0.2em] text-[#f7c948]/80">{item.product}</p>
                       </div>
-                      <form action={deleteSeries}>
+                      <DeleteForm 
+                        action={deleteSeries} 
+                        confirmMessage={`Xoá series "${item.name}"?`}
+                        itemName={item.name}
+                      >
                         <input type="hidden" name="id" value={item.id} />
-                        <button
-                          type="submit"
-                          className="rounded-full border border-white/20 px-3 py-1 text-xs text-gray-300 transition hover:border-red-400 hover:text-red-400"
-                        >
-                          Xoá
-                        </button>
-                      </form>
+                      </DeleteForm>
                     </li>
                   ))
                 )}
@@ -249,15 +249,13 @@ export default async function AdminPage() {
                                 })}
                               </td>
                               <td className="px-3 py-3 text-right">
-                                <form action={deleteBlogPost}>
+                                <DeleteForm 
+                                  action={deleteBlogPost}
+                                  confirmMessage={`Xoá bài viết "${post.title}"?`}
+                                  itemName={post.title}
+                                >
                                   <input type="hidden" name="slug" value={post.slug} />
-                                  <button
-                                    type="submit"
-                                    className="rounded-full border border-white/20 px-3 py-1 text-xs text-gray-300 transition hover:border-red-400 hover:text-red-400"
-                                  >
-                                    Xoá
-                                  </button>
-                                </form>
+                                </DeleteForm>
                               </td>
                             </tr>
                           );
@@ -319,17 +317,16 @@ export default async function AdminPage() {
                                 {formatNumber(point.value, point.series?.unit ?? "")}
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <form action={deletePricePoint}>
+                                <DeleteForm 
+                                  action={deletePricePoint}
+                                  confirmMessage={`Xoá giá ${point.series?.name ?? ""} - ${REGION_LABELS[normalizeRegion(point.region)]}?`}
+                                  itemName={point.series?.name}
+                                >
                                   <input type="hidden" name="seriesId" value={point.seriesId} />
                                   <input type="hidden" name="region" value={point.region} />
+                                  <input type="hidden" name="company" value={point.company ?? ""} />
                                   <input type="hidden" name="ts" value={point.ts.toISOString()} />
-                                  <button
-                                    type="submit"
-                                    className="rounded-full border border-white/20 px-3 py-1 text-[10px] text-gray-300 transition hover:border-red-400 hover:text-red-400"
-                                  >
-                                    Xoá
-                                  </button>
-                                </form>
+                                </DeleteForm>
                               </td>
                             </tr>
                           ))

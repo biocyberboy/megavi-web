@@ -104,17 +104,17 @@ export async function createBlogPost(prevState: ActionState, formData: FormData)
   }
 }
 
-export async function deleteBlogPost(formData: FormData) {
+export async function deleteBlogPost(prevState: ActionState | undefined, formData: FormData): Promise<ActionState> {
   const slug = formData.get("slug");
   if (typeof slug !== "string" || slug.length === 0) {
-    return;
+    return { success: false, message: "Thiếu thông tin bài viết" };
   }
 
   try {
     await prisma.blogPost.delete({ where: { slug } });
   } catch (error) {
     console.error("[admin:deleteBlogPost]", error);
-    return;
+    return { success: false, message: "Không thể xoá bài viết" };
   }
 
   revalidatePath("/admin");
@@ -123,6 +123,8 @@ export async function deleteBlogPost(formData: FormData) {
   revalidateTag("blog:list", "default");
   revalidateTag("blog:latest", "default");
   revalidateTag(`blog:slug:${slug}`, "default");
+
+  return { success: true, message: "Đã xoá bài viết thành công" };
 }
 
 const pricePointSchema = z.object({
@@ -203,19 +205,19 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
   }
 }
 
-export async function deletePricePoint(formData: FormData) {
+export async function deletePricePoint(prevState: ActionState | undefined, formData: FormData): Promise<ActionState> {
   const seriesId = formData.get("seriesId");
   const region = formData.get("region");
   const company = formData.get("company");
   const ts = formData.get("ts");
 
   if (typeof seriesId !== "string" || typeof ts !== "string" || typeof region !== "string") {
-    return;
+    return { success: false, message: "Thiếu thông tin giá" };
   }
 
   const timestamp = new Date(ts);
   if (Number.isNaN(timestamp.getTime())) {
-    return;
+    return { success: false, message: "Ngày giờ không hợp lệ" };
   }
 
   const normalizedCompany = typeof company === "string" && company.length > 0 ? company.trim() : null;
@@ -233,7 +235,7 @@ export async function deletePricePoint(formData: FormData) {
 
     if (!record) {
       console.error("[admin:deletePricePoint] Record not found");
-      return;
+      return { success: false, message: "Không tìm thấy dữ liệu giá" };
     }
 
     // Delete by id
@@ -242,13 +244,15 @@ export async function deletePricePoint(formData: FormData) {
     });
   } catch (error) {
     console.error("[admin:deletePricePoint]", error);
-    return;
+    return { success: false, message: "Không thể xoá dữ liệu giá" };
   }
 
   revalidatePath("/admin");
   revalidatePath("/gia");
   revalidateTag("price:series", "default");
   revalidateTag("price:points", "default");
+
+  return { success: true, message: "Đã xoá dữ liệu giá thành công" };
 }
 
 const seriesSchema = z.object({
@@ -306,21 +310,23 @@ export async function createSeries(prevState: ActionState, formData: FormData): 
   }
 }
 
-export async function deleteSeries(formData: FormData) {
+export async function deleteSeries(prevState: ActionState | undefined, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || id.length === 0) {
-    return;
+    return { success: false, message: "Thiếu thông tin series" };
   }
 
   try {
     await prisma.priceSeries.delete({ where: { id } });
   } catch (error) {
     console.error("[admin:deleteSeries]", error);
-    return;
+    return { success: false, message: "Không thể xoá series" };
   }
 
   revalidatePath("/admin");
   revalidatePath("/gia");
   revalidateTag("price:series", "default");
   revalidateTag("price:points", "default");
+
+  return { success: true, message: "Đã xoá series thành công" };
 }

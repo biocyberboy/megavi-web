@@ -6,6 +6,27 @@ import { test, expect } from '@playwright/test';
  * These tests interact with the real application and database
  */
 
+// Helper function to login to admin
+async function loginToAdmin(page: any) {
+  await page.goto('/admin');
+  
+  // Check if passcode gate is shown
+  const passcodeInput = page.locator('input#admin-pass');
+  
+  if (await passcodeInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    // Need to enter passcode
+    const adminPasscode = process.env.ADMIN_PASSCODE || 'test123';
+    
+    await passcodeInput.fill(adminPasscode);
+    await page.locator('button[type="submit"]:has-text("Truy cập")').click();
+    
+    // Wait for admin page to load
+    await page.waitForTimeout(2000);
+  }
+  
+  await page.waitForLoadState('networkidle');
+}
+
 test.describe('CRUD Operations - Price Data', () => {
   const testSeriesCode = `GA_TEST_${Date.now()}`;
   const testSeriesName = 'Gà Test E2E';
@@ -13,9 +34,8 @@ test.describe('CRUD Operations - Price Data', () => {
   let createdSeriesId: string;
 
   test.beforeEach(async ({ page }) => {
-    // Navigate to admin page
-    await page.goto('/admin');
-    await page.waitForLoadState('networkidle');
+    // Login to admin page
+    await loginToAdmin(page);
   });
 
   test('should create a new series "Gà trắng" successfully', async ({ page }) => {
@@ -121,6 +141,10 @@ test.describe('CRUD Operations - Price Data', () => {
     
     if (await firstDeleteButton.isVisible()) {
       await firstDeleteButton.click();
+      
+      // Click confirm button
+      const confirmButton = pricesTable.locator('tbody tr').first().locator('button:has-text("Xác nhận")');
+      await confirmButton.click();
 
       // Wait for deletion to complete
       await page.waitForTimeout(1000);
@@ -156,6 +180,10 @@ test.describe('CRUD Operations - Price Data', () => {
       // Click delete button
       const deleteButton = testSeriesRow.locator('button:has-text("Xoá")').first();
       await deleteButton.click();
+      
+      // Click confirm button
+      const confirmButton = testSeriesRow.locator('button:has-text("Xác nhận")').first();
+      await confirmButton.click();
 
       // Wait for deletion
       await page.waitForTimeout(1000);

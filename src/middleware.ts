@@ -100,8 +100,8 @@ export function middleware(request: NextRequest) {
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js needs unsafe-eval in dev
-      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.ckeditor.com", // Next.js needs unsafe-eval in dev, CKEditor CDN
+      "style-src 'self' 'unsafe-inline' https://cdn.ckeditor.com",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
       "connect-src 'self' https:",

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import PasscodeGate from "./passcode";
+import { ToastProvider } from "./Toast";
 
 const STORAGE_KEY = "megavi-admin-pass";
 
@@ -23,5 +24,5 @@ export default function ClientGate({ children }: { children: React.ReactNode }) 
     return <PasscodeGate onSuccess={() => setGranted(true)} />;
   }
 
-  return <>{children}</>;
+  return <ToastProvider>{children}</ToastProvider>;
 }
