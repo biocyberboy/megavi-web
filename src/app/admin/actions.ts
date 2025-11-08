@@ -139,6 +139,18 @@ const pricePointSchema = z.object({
   source: z.string().trim().optional(),
 });
 
+function parsePriceInput(raw: string | undefined, label: string) {
+  if (!raw || raw.trim().length === 0) {
+    throw new Error(label);
+  }
+  const parsed = Number(raw);
+  if (Number.isNaN(parsed)) {
+    throw new Error(label);
+  }
+  const normalized = Math.abs(parsed) > 0 && Math.abs(parsed) < 1000 ? parsed * 1000 : parsed;
+  return normalized;
+}
+
 export async function createPricePoint(prevState: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const parsed = pricePointSchema.safeParse({
@@ -163,25 +175,14 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
     const normalizedRegion = region.trim().toUpperCase();
     const normalizedCompany = company && company.length > 0 ? company.trim() : null;
 
-    const ensureNumber = (val: string | undefined, label: string) => {
-      if (!val || val.length === 0) {
-        throw new Error(label);
-      }
-      const num = Number(val);
-      if (Number.isNaN(num)) {
-        throw new Error(label);
-      }
-      return num;
-    };
-
     let resolvedValue: number;
     let resolvedMin: number;
     let resolvedMax: number;
 
     if (priceMode === "RANGE") {
       try {
-        const minNumber = ensureNumber(valueMin, "Giá thấp nhất không hợp lệ");
-        const maxNumber = ensureNumber(valueMax, "Giá cao nhất không hợp lệ");
+        const minNumber = parsePriceInput(valueMin, "Giá thấp nhất không hợp lệ");
+        const maxNumber = parsePriceInput(valueMax, "Giá cao nhất không hợp lệ");
         if (minNumber > maxNumber) {
           return { success: false, message: "Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất." };
         }
@@ -193,7 +194,7 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       }
     } else {
       try {
-        const singleValue = ensureNumber(value, "Giá trị không hợp lệ");
+        const singleValue = parsePriceInput(value, "Giá trị không hợp lệ");
         resolvedValue = singleValue;
         resolvedMin = singleValue;
         resolvedMax = singleValue;

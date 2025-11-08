@@ -31,11 +31,18 @@ async function loginToAdmin(page: any) {
   await page.waitForLoadState('networkidle');
 }
 
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const formatDisplayValue = (value: number) => {
+  const normalized = Math.abs(value) > 0 && Math.abs(value) < 1000 ? value * 1000 : value;
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(normalized);
+};
+
 test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
   const TIMESTAMP = Date.now();
   const TEST_SERIES_CODE = `GA_TRANG_TEST_${TIMESTAMP}`;
   const TEST_SERIES_NAME = `Gà trắng (Test ${TIMESTAMP})`;
-  const TEST_PRICE_VALUE = 35000;
+  const TEST_PRICE_VALUE = 35;
   const RANGE_PRICE_MIN = 40123;
   const RANGE_PRICE_MAX = 45678;
 
@@ -132,11 +139,10 @@ test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
     const pricesTable = page.locator('h3:has-text("Các dòng giá gần nhất")').locator('..');
     await expect(pricesTable).toBeVisible();
 
-    // Check if our price value appears (formatted as Vietnamese number)
+    const expectedDisplay = formatDisplayValue(TEST_PRICE_VALUE);
     const hasPrice = await pricesTable
-      .locator('tbody tr')
+      .locator(`text=/${escapeRegex(expectedDisplay)}/`)
       .first()
-      .locator('text=/35|35,000|35.000/')
       .isVisible()
       .catch(() => false);
 
@@ -183,8 +189,8 @@ test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const formattedMin = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(RANGE_PRICE_MIN);
-    const formattedMax = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(RANGE_PRICE_MAX);
+    const formattedMin = formatDisplayValue(RANGE_PRICE_MIN);
+    const formattedMax = formatDisplayValue(RANGE_PRICE_MAX);
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const rangeSelector = `/${escapeRegex(formattedMin)}\\s*\\u2013\\s*${escapeRegex(formattedMax)}/`;
 

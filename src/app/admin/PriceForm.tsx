@@ -195,7 +195,8 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
               step="0.01"
               name="value"
               required
-              placeholder="35000"
+              placeholder="Ví dụ: 35 (tự hiểu 35.000)"
+              inputMode="decimal"
               className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
             />
           </label>
@@ -209,7 +210,8 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
                 step="0.01"
                 name="valueMin"
                 required
-                placeholder="34000"
+                placeholder="Ví dụ: 34"
+                inputMode="decimal"
                 className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
               />
             </label>
@@ -220,7 +222,8 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
                 step="0.01"
                 name="valueMax"
                 required
-                placeholder="36000"
+                placeholder="Ví dụ: 36"
+                inputMode="decimal"
                 className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
               />
             </label>
@@ -249,6 +252,9 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
           />
         </label>
       </div>
+      <p className="text-[11px] text-gray-500">
+        Gõ nhanh: nhập <span className="font-semibold text-gray-300">34</span> hệ thống sẽ lưu thành <span className="font-semibold text-[#f7c948]">34.000</span>. Nếu cần 34.500 thì nhập đầy đủ 34500.
+      </p>
 
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className={state.message ? (state.success ? "text-emerald-400" : "text-red-400") : "text-gray-400"}>
