@@ -4,22 +4,10 @@ import { toPng } from "html-to-image";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import type { LatestPriceSnapshot } from "@/lib/data/price";
+import { formatCompactPriceRange } from "@/lib/priceFormat";
+import { useTheme } from "@/components/ThemeProvider";
 
 type SnapshotEntry = LatestPriceSnapshot;
-
-function formatCurrency(value: number, unit: string) {
-  return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value)} ${unit}`;
-}
-
-function formatCurrencyRange(entry: SnapshotEntry, unit: string) {
-  const minValue = entry.valueMin ?? entry.value;
-  const maxValue = entry.valueMax ?? entry.value;
-  if (Math.abs(minValue - maxValue) < 0.0001) {
-    return formatCurrency(entry.value, unit);
-  }
-  const formatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
-  return `${formatter.format(minValue)} – ${formatter.format(maxValue)} ${unit}`;
-}
 
 function formatDate(ts: string) {
   const date = new Date(ts);
@@ -37,6 +25,128 @@ const REGION_LABELS: Record<string, string> = {
 };
 
 const REGION_ORDER = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
+
+type SnapshotTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  panelClass: string | { dark: string; light: string };
+  cardClass: string | { dark: string; light: string };
+  headerTextClass: string | { dark: string; light: string };
+  badgeClass: string | { dark: string; light: string };
+  tableHeaderClass: string | { dark: string; light: string };
+  regionHeaderClass: string | { dark: string; light: string };
+  valueTextClass: string | { dark: string; light: string };
+  companyTextClass: string | { dark: string; light: string };
+  dateTextClass: string | { dark: string; light: string };
+  captureBackground: string;
+  previewClass: string;
+};
+
+const SNAPSHOT_TEMPLATES: SnapshotTemplate[] = [
+  {
+    id: "classic",
+    name: "Classic",
+    description: "Đen vàng nổi bật",
+    panelClass: "bg-[#090909] border-white/10 text-gray-100",
+    cardClass: "bg-black/40 border-white/10",
+    headerTextClass: "text-gray-300 border-white/5",
+    badgeClass: "text-gray-400 border-white/10",
+    tableHeaderClass: "text-[#f7c948]/80",
+    regionHeaderClass: "text-[#f7c948]",
+    valueTextClass: "text-white",
+    companyTextClass: "text-gray-300",
+    dateTextClass: "text-gray-400",
+    captureBackground: "#090909",
+    previewClass: "bg-gradient-to-r from-[#f59e0b] to-[#fbbf24]",
+  },
+  {
+    id: "midnight",
+    name: "Midnight",
+    description: "Xanh đậm dịu mắt",
+    panelClass: {
+      dark: "bg-gradient-to-br from-[#0f172a] via-[#131c31] to-[#1f2937] border-[#1e293b] text-slate-100",
+      light: "bg-gradient-to-br from-[#edf4ff] via-[#f8fbff] to-[#ffffff] border-[#c7d2fe]/70 text-slate-800",
+    },
+    cardClass: {
+      dark: "bg-white/5 border-[#1f4374]/40 backdrop-blur",
+      light: "bg-white border-[#bfdbfe] shadow-[0_10px_30px_rgba(15,23,42,0.08)]",
+    },
+    headerTextClass: {
+      dark: "text-[#dbeafe] border-[#1f4374]/30",
+      light: "text-[#1e3a8a] border-[#bfdbfe]",
+    },
+    badgeClass: {
+      dark: "text-[#bfdbfe] border-[#1f4374]/50",
+      light: "text-[#1d4ed8] border-[#93c5fd] bg-[#eff6ff]",
+    },
+    tableHeaderClass: {
+      dark: "text-[#93c5fd]/90",
+      light: "text-[#1e3a8a]",
+    },
+    regionHeaderClass: {
+      dark: "text-[#bfdbfe]",
+      light: "text-[#1d4ed8]",
+    },
+    valueTextClass: {
+      dark: "text-white",
+      light: "text-[#0f172a]",
+    },
+    companyTextClass: {
+      dark: "text-[#cbd5f5]",
+      light: "text-[#475569]",
+    },
+    dateTextClass: {
+      dark: "text-[#9ca3af]",
+      light: "text-[#64748b]",
+    },
+    captureBackground: "#edf4ff",
+    previewClass: "bg-gradient-to-r from-[#38bdf8] to-[#4f46e5]",
+  },
+  {
+    id: "ember",
+    name: "Ember",
+    description: "Tông nâu cam ấm",
+    panelClass: {
+      dark: "bg-gradient-to-br from-[#1b1205] via-[#2b1606] to-[#3b2009] border-[#8c4c0f]/40 text-amber-50",
+      light: "bg-gradient-to-br from-[#fff7ed] via-[#fff1e0] to-white border-[#fdba74]/60 text-[#7c2d12]",
+    },
+    cardClass: {
+      dark: "bg-[#2b1606]/80 border-[#f59e0b]/40",
+      light: "bg-[#fff7ed]/90 border-[#fdba74]/70",
+    },
+    headerTextClass: {
+      dark: "text-[#fcd34d] border-[#a16207]/30",
+      light: "text-[#9a3412] border-[#fdba74]",
+    },
+    badgeClass: {
+      dark: "text-[#fde68a] border-[#f59e0b]/60",
+      light: "text-[#b45309] border-[#fdba74]",
+    },
+    tableHeaderClass: {
+      dark: "text-[#facc15]",
+      light: "text-[#b45309]",
+    },
+    regionHeaderClass: {
+      dark: "text-[#fde68a]",
+      light: "text-[#ea580c]",
+    },
+    valueTextClass: {
+      dark: "text-[#fef3c7]",
+      light: "text-[#7c2d12]",
+    },
+    companyTextClass: {
+      dark: "text-[#fcd34d]",
+      light: "text-[#9a3412]",
+    },
+    dateTextClass: {
+      dark: "text-[#fbbf24]",
+      light: "text-[#b45309]",
+    },
+    captureBackground: "#2b1606",
+    previewClass: "bg-gradient-to-r from-[#f97316] via-[#ea580c] to-[#b45309]",
+  },
+];
 
 function sortEntries(entries: SnapshotEntry[]) {
   return entries.slice().sort((a, b) => {
@@ -56,7 +166,9 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
   const [error, setError] = useState<string | null>(null);
   const [showSeriesSelector, setShowSeriesSelector] = useState(false);
   const [selectedSeriesIds, setSelectedSeriesIds] = useState<Set<string>>(new Set());
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(SNAPSHOT_TEMPLATES[0]?.id ?? "classic");
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     let ignore = false;
@@ -138,13 +250,32 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
     setSelectedSeriesIds(new Set());
   };
 
+  const selectedTemplate = useMemo(() => {
+    const base = SNAPSHOT_TEMPLATES.find((tpl) => tpl.id === selectedTemplateId) ?? SNAPSHOT_TEMPLATES[0];
+    const resolve = (value: SnapshotTemplate["panelClass"]) =>
+      typeof value === "string" ? value : value[theme === "light" ? "light" : "dark"];
+
+    return {
+      ...base,
+      panelClass: resolve(base.panelClass),
+      cardClass: resolve(base.cardClass),
+      headerTextClass: resolve(base.headerTextClass),
+      badgeClass: resolve(base.badgeClass),
+      tableHeaderClass: resolve(base.tableHeaderClass),
+      regionHeaderClass: resolve(base.regionHeaderClass),
+      valueTextClass: resolve(base.valueTextClass),
+      companyTextClass: resolve(base.companyTextClass),
+      dateTextClass: resolve(base.dateTextClass),
+    };
+  }, [selectedTemplateId, theme]);
+
   const handleCapture = async () => {
     if (!containerRef.current) return;
 
     try {
       const dataUrl = await toPng(containerRef.current, {
         cacheBust: true,
-        backgroundColor: "#090909",
+        backgroundColor: selectedTemplate.captureBackground,
         pixelRatio: 2, // Higher quality
       });
       const link = document.createElement("a");
@@ -234,29 +365,58 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
       )}
 
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <h2 className="text-lg font-serif text-[#f6f7f9]">Bảng giá mới nhất</h2>
           <p className="text-xs text-gray-400">Mỗi dòng là lần ghi nhận giá gần nhất cho từng sản phẩm - vùng - công ty.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenSelector}
-          className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs text-gray-200 transition hover:border-[#f7c948] hover:text-[#f7c948]"
-        >
-          <span className="relative flex h-5 w-6 items-center justify-center text-current">
-            <span className="absolute inset-0 rounded-[6px] border border-current"></span>
-            <span className="absolute -top-1 left-1/2 h-[6px] w-3 -translate-x-1/2 rounded-sm border border-current bg-transparent"></span>
-            <span className="relative h-[10px] w-[10px] rounded-full border border-current"></span>
-            <span className="absolute right-[6px] top-1 h-[4px] w-[4px] rounded-full border border-current bg-transparent"></span>
-          </span>
-          Chụp ảnh
-        </button>
+        <div className="flex flex-col items-start gap-2 text-[10px] uppercase tracking-[0.3em] text-gray-400 md:items-end">
+          <div className="flex flex-col gap-2">
+            <span className="text-[10px]">Template</span>
+            <div className="flex flex-wrap gap-1">
+              {SNAPSHOT_TEMPLATES.map((template) => {
+                const isActive = template.id === selectedTemplateId;
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => setSelectedTemplateId(template.id)}
+                    aria-pressed={isActive}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-semibold transition ${
+                      isActive
+                        ? "border-transparent bg-[#f7c948] text-black shadow-[0_4px_16px_rgba(247,201,72,0.45)]"
+                        : "border-white/20 text-gray-300 hover:border-[#f7c948]/60 hover:text-white"
+                    }`}
+                  >
+                    <span className={`h-3 w-6 rounded-full ${template.previewClass}`} aria-hidden />
+                    {template.name}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[10px] tracking-normal text-gray-400">
+              {selectedTemplate.description}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenSelector}
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs text-gray-200 transition hover:border-[#f7c948] hover:text-[#f7c948]"
+          >
+            <span className="relative flex h-5 w-6 items-center justify-center text-current">
+              <span className="absolute inset-0 rounded-[6px] border border-current"></span>
+              <span className="absolute -top-1 left-1/2 h-[6px] w-3 -translate-x-1/2 rounded-sm border border-current bg-transparent"></span>
+              <span className="relative h-[10px] w-[10px] rounded-full border border-current"></span>
+              <span className="absolute right-[6px] top-1 h-[4px] w-[4px] rounded-full border border-current bg-transparent"></span>
+            </span>
+            Chụp ảnh
+          </button>
+        </div>
       </div>
 
       <div
         ref={containerRef}
-        className="latest-snapshot-panel theme-panel rounded-3xl border p-4 md:p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
+        className={`latest-snapshot-panel rounded-3xl border p-4 md:p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] ${selectedTemplate.panelClass}`}
       >
         {loading ? (
           <p className="text-sm text-gray-400">Đang tải dữ liệu mới nhất...</p>
@@ -274,42 +434,42 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
                 regionGroups.set(entry.region, list);
               });
               return (
-                <div key={group.seriesId} className="rounded-2xl border border-white/5 bg-black/40 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2 text-gray-300">
+                <div key={group.seriesId} className={`rounded-2xl border px-4 py-3 ${selectedTemplate.cardClass}`}>
+                  <div className={`flex flex-wrap items-center justify-between gap-2 border-b pb-2 ${selectedTemplate.headerTextClass}`}>
                     <div className="flex flex-col">
-                      <span className="text-base font-semibold text-[#f6f7f9]">{group.seriesName}</span>
+                      <span className="text-base font-semibold">{group.seriesName}</span>
                     </div>
-                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-gray-400">
-                      Đơn vị: {group.unit}
+                    <span className={`rounded-full border px-3 py-1 text-xs ${selectedTemplate.badgeClass}`}>
+                      Đơn vị: đ/kg
                     </span>
                   </div>
 
                   <div className="mt-3 overflow-hidden rounded-xl">
                     <table className="latest-snapshot-table min-w-full divide-y divide-white/10">
-                      <thead className="text-[11px] uppercase tracking-wide text-[#f7c948]/80">
+                      <thead className={`text-[11px] uppercase tracking-wide ${selectedTemplate.tableHeaderClass}`}>
                         <tr>
                           <th className="px-3 py-2 text-left">Công ty</th>
                           <th className="px-3 py-2 text-left">Giá</th>
                           <th className="px-3 py-2 text-left">Ngày</th>
                         </tr>
                       </thead>
-                      <tbody className="text-gray-200">
+                      <tbody>
                         {REGION_ORDER.filter((region) => regionGroups.has(region)).map((region) => {
                           const entries = regionGroups.get(region)!;
                           return (
                             <Fragment key={`${group.seriesId}-${region}`}>
-                              <tr className="region-header">
+                              <tr className={`region-header ${selectedTemplate.regionHeaderClass}`}>
                                 <td colSpan={3} className="px-3 py-2 text-xs font-semibold tracking-[0.3em] uppercase">
                                   {REGION_LABELS[region] ?? region}
                                 </td>
                               </tr>
                               {entries.map((entry) => (
                                 <tr key={`${entry.seriesId}-${region}-${entry.company ?? "null"}`}>
-                                  <td className="px-3 py-2 text-xs">{entry.company ?? "—"}</td>
-                                  <td className="px-3 py-2 text-xs font-semibold text-current">
-                                    {formatCurrencyRange(entry, group.unit)}
+                                  <td className={`px-3 py-2 text-xs ${selectedTemplate.companyTextClass}`}>{entry.company ?? "—"}</td>
+                                  <td className={`px-3 py-2 text-xs font-semibold whitespace-nowrap ${selectedTemplate.valueTextClass}`}>
+                                    {formatCompactPriceRange(entry.value, entry.valueMin, entry.valueMax)}
                                   </td>
-                                  <td className="px-3 py-2 text-xs text-gray-400">{formatDate(entry.recordedAt)}</td>
+                                  <td className={`px-3 py-2 text-xs ${selectedTemplate.dateTextClass}`}>{formatDate(entry.recordedAt)}</td>
                                 </tr>
                               ))}
                             </Fragment>

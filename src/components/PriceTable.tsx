@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { formatCompactPriceRange } from "@/lib/priceFormat";
+
 type PricePoint = {
   ts: string;
   value: number;
@@ -22,21 +24,6 @@ type Props = {
   regionLabel?: string;
   regionValue?: string;
 };
-
-function formatPrice(value: number, unit: string) {
-  return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value)} ${unit}`;
-}
-
-function formatPriceRange(point: PricePoint, unit: string) {
-  const minValue = point.valueMin ?? point.value;
-  const maxValue = point.valueMax ?? point.value;
-  if (Math.abs(minValue - maxValue) < 0.0001) {
-    return formatPrice(point.value, unit);
-  }
-  const formattedMin = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(minValue);
-  const formattedMax = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(maxValue);
-  return `${formattedMin} – ${formattedMax} ${unit}`;
-}
 
 const PAGE_SIZE = 10;
 
@@ -105,7 +92,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
           <p className="text-[10px] md:text-xs uppercase tracking-[0.25em] md:tracking-[0.3em] text-[#f7c948]/70">Bảng dữ liệu</p>
           <h3 className="text-base md:text-lg font-serif text-[#f6f7f9]">{series.name}</h3>
           <p className="text-[10px] md:text-xs text-gray-400">
-            Vùng: {headerRegionLabel} · Khung {rangeLabel}
+            Vùng: {headerRegionLabel} · Khung {rangeLabel} · Đơn vị: đ/kg
           </p>
         </div>
         <Link
@@ -122,7 +109,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
             <tr>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Vùng miền</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Ngày</th>
-              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Giá / Khoảng</th>
+              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Giá</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Công ty</th>
             </tr>
           </thead>
@@ -145,7 +132,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
                     })}
                   </td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-white whitespace-nowrap">
-                    {formatPriceRange(point, series.unit)}
+                    {formatCompactPriceRange(point.value, point.valueMin, point.valueMax)}
                   </td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400">{point.company || "—"}</td>
                 </tr>

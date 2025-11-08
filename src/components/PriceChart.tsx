@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +20,7 @@ import type { TooltipProps } from "recharts";
 import PriceTable from "@/components/PriceTable";
 
 import { useTheme } from "@/components/ThemeProvider";
+import { formatCompactPriceRange } from "@/lib/priceFormat";
 const ACCENT_COLOR = "#f7c948";
 
 const REGION_LABELS: Record<string, string> = {
@@ -187,6 +188,7 @@ export default function PriceChart({
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [chartWarning, setChartWarning] = useState<string | null>(null);
   const initialLoadHandledRef = useRef(false);
+  const lastFetchKeyRef = useRef<string | null>(null);
 
   const isAllRegionsSelected =
     selectedRegions.length === 0 || selectedRegions.includes("ALL");
@@ -256,6 +258,18 @@ export default function PriceChart({
       return;
     }
 
+    const fetchKey = JSON.stringify({
+      product: selectedProduct,
+      range: selectedRange.value,
+      company: selectedCompany,
+      regions: regionSelectionKey,
+      mode: isAllRegionsSelected ? "ALL" : isMultiRegionSelected ? "MULTI" : primaryRegion,
+    });
+
+    if (fetchKey === lastFetchKeyRef.current) {
+      return;
+    }
+
     let ignore = false;
     const controller = new AbortController();
 
@@ -271,6 +285,7 @@ export default function PriceChart({
 
       if (usingInitialPayload) {
         initialLoadHandledRef.current = true;
+        lastFetchKeyRef.current = fetchKey;
         return;
       }
 
@@ -304,6 +319,7 @@ export default function PriceChart({
                 setComparisonData({});
                 setData([]);
                 setError("Hiện chưa có dữ liệu cho lựa chọn này. Vui lòng thử lại sau.");
+                lastFetchKeyRef.current = fetchKey;
               }
               return;
             }
@@ -353,6 +369,7 @@ export default function PriceChart({
 
             setComparisonData(normalizedRegionMap);
             setData([]);
+            lastFetchKeyRef.current = fetchKey;
           }
         } catch (err) {
           if (!ignore && err instanceof Error && err.name !== "AbortError") {
@@ -401,6 +418,7 @@ export default function PriceChart({
           }
 
           if (!response.ok) {
+            lastFetchKeyRef.current = null;
             throw new Error(`Lỗi tải dữ liệu (${response.status})`);
           }
 
@@ -435,6 +453,7 @@ export default function PriceChart({
             setComparisonData(filteredRegionMap);
             setCompanyComparisonData({});
             setData([]);
+            lastFetchKeyRef.current = fetchKey;
           }
         } catch (err) {
           if (!ignore && err instanceof Error && err.name !== "AbortError") {
@@ -472,11 +491,13 @@ export default function PriceChart({
             setData([]);
             setComparisonData({});
             setError("Hiện chưa có dữ liệu cho lựa chọn này. Vui lòng chọn vùng khác hoặc thử lại sau.");
+            lastFetchKeyRef.current = fetchKey;
           }
           return;
         }
 
         if (!response.ok) {
+          lastFetchKeyRef.current = null;
           throw new Error(`Lỗi tải dữ liệu (${response.status})`);
         }
 
@@ -500,10 +521,12 @@ export default function PriceChart({
             setCompanyComparisonData({});
             setComparisonData({});
           }
+          lastFetchKeyRef.current = fetchKey;
         }
       } catch (err) {
         if (!ignore && err instanceof Error && err.name !== "AbortError") {
           setError(err.message);
+          lastFetchKeyRef.current = null;
         }
       } finally {
         if (!ignore) {
@@ -545,6 +568,16 @@ export default function PriceChart({
       })),
     [data, selectedRange.value]
   );
+
+  const activeComparisonData = useMemo(() => {
+    if (isAllRegionsSelected) {
+      return comparisonData;
+    }
+    const allowed = new Set(normalizedSelectedRegions);
+    return Object.fromEntries(
+      Object.entries(comparisonData).filter(([region]) => allowed.has(region))
+    );
+  }, [comparisonData, isAllRegionsSelected, normalizedSelectedRegions]);
 
   const comparisonChartData = useMemo(() => {
     const allTimestamps = new Set<string>();
@@ -615,16 +648,6 @@ export default function PriceChart({
       return dataPoint;
     });
   }, [companyComparisonData, selectedRange.value]);
-
-  const activeComparisonData = useMemo(() => {
-    if (isAllRegionsSelected) {
-      return comparisonData;
-    }
-    const allowed = new Set(normalizedSelectedRegions);
-    return Object.fromEntries(
-      Object.entries(comparisonData).filter(([region]) => allowed.has(region))
-    );
-  }, [comparisonData, isAllRegionsSelected, normalizedSelectedRegions]);
 
   const tableData = useMemo(() => {
     if (isAllRegionsSelected || isMultiRegionSelected) {
@@ -726,15 +749,8 @@ export default function PriceChart({
     });
   };
 
-  const formatTooltipValue = (value: number, minValue?: number | null, maxValue?: number | null) => {
-    const min = minValue ?? value;
-    const max = maxValue ?? value;
-    const formatter = Intl.NumberFormat("vi-VN");
-    if (Math.abs(min - max) < 0.0001) {
-      return `${formatter.format(value)} ${seriesMeta?.unit ?? "đ/kg"}`;
-    }
-    return `${formatter.format(min)} – ${formatter.format(max)} ${seriesMeta?.unit ?? "đ/kg"}`;
-  };
+  const formatTooltipValue = (value: number, minValue?: number | null, maxValue?: number | null) =>
+    formatCompactPriceRange(value, minValue, maxValue);
 
   const CustomTooltip = ({
     active,
@@ -846,7 +862,7 @@ export default function PriceChart({
                 key={region}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}
               >
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: theme === "light" ? "#374151" : "#d1d5db" }}>
                   <span
                     aria-hidden
                     style={{
@@ -865,7 +881,7 @@ export default function PriceChart({
               </div>
             ))}
           {hasAveraged ? (
-            <span style={{ fontSize: 10, color: "rgba(209,213,219,0.75)" }}>
+            <span style={{ fontSize: 10, color: theme === "light" ? "rgba(55,65,81,0.8)" : "rgba(209,213,219,0.75)" }}>
               Giá trung bình theo ngày (tổng hợp từ nhiều công ty).
             </span>
           ) : null}
@@ -934,7 +950,7 @@ export default function PriceChart({
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {companiesWithValue.map(({ company, value, color, min, max }) => (
             <div key={company} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: theme === "light" ? "#1f2933" : "#d1d5db" }}>
                 <span
                   aria-hidden
                   style={{

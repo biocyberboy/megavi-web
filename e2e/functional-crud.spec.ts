@@ -34,8 +34,16 @@ async function loginToAdmin(page: any) {
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const formatDisplayValue = (value: number) => {
-  const normalized = Math.abs(value) > 0 && Math.abs(value) < 1000 ? value * 1000 : value;
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(normalized);
+  const normalizedValue = Math.abs(value) > 0 && Math.abs(value) < 1000 ? value * 1000 : value;
+  const scaled = normalizedValue / 1000;
+  const roundedTwo = Math.round(scaled * 100) / 100;
+  if (Math.abs(roundedTwo - Math.round(roundedTwo)) < 1e-6) {
+    return Math.round(roundedTwo).toString();
+  }
+  if (Math.abs(roundedTwo * 10 - Math.round(roundedTwo * 10)) < 1e-6) {
+    return (Math.round(roundedTwo * 10) / 10).toFixed(1).replace(/\.0$/, '');
+  }
+  return (Math.round(roundedTwo * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
 };
 
 test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
@@ -192,7 +200,7 @@ test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
     const formattedMin = formatDisplayValue(RANGE_PRICE_MIN);
     const formattedMax = formatDisplayValue(RANGE_PRICE_MAX);
     const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const rangeSelector = `/${escapeRegex(formattedMin)}\\s*\\u2013\\s*${escapeRegex(formattedMax)}/`;
+    const rangeSelector = `/${escapeRegex(formattedMin)}-${escapeRegex(formattedMax)}/`;
 
     const latestPrices = page.locator('h3:has-text("Các dòng giá gần nhất")').locator('..');
     await expect(latestPrices.locator(`text=${rangeSelector}`).first()).toBeVisible({ timeout: 5000 });

@@ -31,6 +31,17 @@ test.describe('CRUD Operations - Price Data', () => {
   const testSeriesCode = `GA_TEST_${Date.now()}`;
   const testSeriesName = 'Gà Test E2E';
   const testPrice = 35000;
+  const formatTableDisplay = (value: number) => {
+    const scaled = value / 1000;
+    const roundedTwo = Math.round(scaled * 100) / 100;
+    if (Math.abs(roundedTwo - Math.round(roundedTwo)) < 1e-6) {
+      return Math.round(roundedTwo).toString();
+    }
+    if (Math.abs(roundedTwo * 10 - Math.round(roundedTwo * 10)) < 1e-6) {
+      return (Math.round(roundedTwo * 10) / 10).toFixed(1).replace(/\.0$/, '');
+    }
+    return (Math.round(roundedTwo * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  };
   let createdSeriesId: string;
 
   test.beforeEach(async ({ page }) => {
@@ -118,7 +129,7 @@ test.describe('CRUD Operations - Price Data', () => {
     await page.reload();
     
     // Check if price value appears in the table
-    const priceText = new Intl.NumberFormat('vi-VN').format(testPrice);
+    const priceText = formatTableDisplay(testPrice);
     await expect(page.locator(`text=/${priceText}/`)).toBeVisible();
 
     // PASS: Price point created successfully ✅
