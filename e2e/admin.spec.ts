@@ -40,6 +40,28 @@ test.describe('Admin Page', () => {
     expect(formCount).toBeGreaterThan(0);
   });
 
+  test('should toggle price form between single and range modes', async ({ adminPage, page }) => {
+    await adminPage.goto();
+    const priceForm = page.locator('form').filter({ hasText: 'Cập nhật giá theo ngày' });
+    await expect(priceForm).toBeVisible();
+
+    const singleValueInput = priceForm.locator('input[name="value"][type="number"]');
+    await expect(singleValueInput).toBeVisible();
+
+    await priceForm.locator('button:has-text("Khoảng giá")').click();
+
+    const minInput = priceForm.locator('input[name="valueMin"][type="number"]');
+    const maxInput = priceForm.locator('input[name="valueMax"][type="number"]');
+    await expect(minInput).toBeVisible();
+    await expect(maxInput).toBeVisible();
+    await expect(priceForm.locator('input[name="value"][type="hidden"]')).toHaveCount(1);
+
+    await priceForm.locator('button:has-text("Một giá")').click();
+    await expect(priceForm.locator('input[name="valueMin"][type="number"]')).toHaveCount(0);
+    await expect(priceForm.locator('input[name="valueMax"][type="number"]')).toHaveCount(0);
+    await expect(priceForm.locator('input[name="value"][type="number"]')).toBeVisible();
+  });
+
   test('should be responsive on tablet', async ({ adminPage, page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await adminPage.goto();

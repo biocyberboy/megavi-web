@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import prisma from "@/lib/prisma";
 import { REGION_KEYS, deriveProductFromCode, normalizeRegion } from "@/lib/seriesCode";
+import { Prisma } from "@prisma/client";
 
 import BlogForm from "./BlogForm";
 import ClientGate from "./ClientGate";
@@ -19,6 +20,27 @@ function formatNumber(value: number, unit: string) {
     maximumFractionDigits: 2,
   });
   return `${formatter.format(value)} ${unit}`;
+}
+
+function formatPriceRange(value: number, valueMin: number | null | undefined, valueMax: number | null | undefined, unit: string) {
+  const minValue = typeof valueMin === "number" ? valueMin : value;
+  const maxValue = typeof valueMax === "number" ? valueMax : value;
+  if (Math.abs(minValue - maxValue) < 0.0001) {
+    return formatNumber(value, unit);
+  }
+
+  const formatter = new Intl.NumberFormat("vi-VN", {
+    maximumFractionDigits: 2,
+  });
+
+  return `${formatter.format(minValue)} – ${formatter.format(maxValue)} ${unit}`;
+}
+
+function decimalToNumber(value: Prisma.Decimal | number | null | undefined): number | null {
+  if (value == null) {
+    return null;
+  }
+  return typeof value === "number" ? value : value.toNumber();
 }
 
 const REGION_LABELS: Record<string, string> = {
@@ -49,6 +71,8 @@ type PricePointSummary = {
   seriesId: string;
   ts: Date;
   value: number;
+  valueMin: number | null;
+  valueMax: number | null;
   source: string | null;
   region: string;
   company: string | null;
@@ -110,7 +134,9 @@ export default async function AdminPage() {
     series = seriesData;
     pricePoints = pricePointData.map((point) => ({
       ...point,
-      value: point.value.toNumber ? point.value.toNumber() : Number(point.value),
+      value: (decimalToNumber(point.value) ?? 0),
+      valueMin: decimalToNumber(point.valueMin),
+      valueMax: decimalToNumber(point.valueMax),
     }));
   } catch (error) {
     console.error("[admin] Failed to load data", error);
@@ -314,7 +340,7 @@ export default async function AdminPage() {
                                 {point.ts.toLocaleDateString("vi-VN")}
                               </td>
                               <td className="px-3 py-2 text-right text-sm font-semibold text-white">
-                                {formatNumber(point.value, point.series?.unit ?? "")}
+                                {formatPriceRange(point.value, point.valueMin, point.valueMax, point.series?.unit ?? "")}
                               </td>
                               <td className="px-3 py-2 text-right">
                                 <DeleteForm 

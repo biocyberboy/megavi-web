@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 type PricePoint = {
   ts: string;
   value: number;
+  valueMin?: number | null;
+  valueMax?: number | null;
   source: string | null;
   region?: string;
   company?: string | null;
@@ -21,8 +23,19 @@ type Props = {
   regionValue?: string;
 };
 
-function formatNumber(value: number, unit: string) {
+function formatPrice(value: number, unit: string) {
   return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(value)} ${unit}`;
+}
+
+function formatPriceRange(point: PricePoint, unit: string) {
+  const minValue = point.valueMin ?? point.value;
+  const maxValue = point.valueMax ?? point.value;
+  if (Math.abs(minValue - maxValue) < 0.0001) {
+    return formatPrice(point.value, unit);
+  }
+  const formattedMin = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(minValue);
+  const formattedMax = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(maxValue);
+  return `${formattedMin} – ${formattedMax} ${unit}`;
 }
 
 const PAGE_SIZE = 10;
@@ -109,7 +122,7 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
             <tr>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Vùng miền</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Ngày</th>
-              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Giá trị</th>
+              <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Giá / Khoảng</th>
               <th className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap">Công ty</th>
             </tr>
           </thead>
@@ -131,7 +144,9 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
                       year: "numeric",
                     })}
                   </td>
-                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-white whitespace-nowrap">{formatNumber(point.value, series.unit)}</td>
+                  <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-white whitespace-nowrap">
+                    {formatPriceRange(point, series.unit)}
+                  </td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400">{point.company || "—"}</td>
                 </tr>
               ))

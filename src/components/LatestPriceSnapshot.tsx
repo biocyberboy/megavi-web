@@ -11,6 +11,16 @@ function formatCurrency(value: number, unit: string) {
   return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value)} ${unit}`;
 }
 
+function formatCurrencyRange(entry: SnapshotEntry, unit: string) {
+  const minValue = entry.valueMin ?? entry.value;
+  const maxValue = entry.valueMax ?? entry.value;
+  if (Math.abs(minValue - maxValue) < 0.0001) {
+    return formatCurrency(entry.value, unit);
+  }
+  const formatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 });
+  return `${formatter.format(minValue)} – ${formatter.format(maxValue)} ${unit}`;
+}
+
 function formatDate(ts: string) {
   const date = new Date(ts);
   return date.toLocaleDateString("vi-VN", {
@@ -297,7 +307,7 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
                                 <tr key={`${entry.seriesId}-${region}-${entry.company ?? "null"}`}>
                                   <td className="px-3 py-2 text-xs">{entry.company ?? "—"}</td>
                                   <td className="px-3 py-2 text-xs font-semibold text-current">
-                                    {formatCurrency(entry.value, group.unit)}
+                                    {formatCurrencyRange(entry, group.unit)}
                                   </td>
                                   <td className="px-3 py-2 text-xs text-gray-400">{formatDate(entry.recordedAt)}</td>
                                 </tr>

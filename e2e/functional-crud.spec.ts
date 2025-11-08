@@ -36,6 +36,8 @@ test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
   const TEST_SERIES_CODE = `GA_TRANG_TEST_${TIMESTAMP}`;
   const TEST_SERIES_NAME = `Gà trắng (Test ${TIMESTAMP})`;
   const TEST_PRICE_VALUE = 35000;
+  const RANGE_PRICE_MIN = 40123;
+  const RANGE_PRICE_MAX = 45678;
 
   test('TC001: Create new series "Gà trắng" successfully', async ({ page }) => {
     // Step 1: Login to admin page
@@ -145,6 +147,49 @@ test.describe('Functional Test: Create & Delete Price for Gà Trắng', () => {
     }
 
     // ✅ TEST PASS: Price submission completed
+  });
+
+  test('TC002_RANGE: Add ranged price point successfully', async ({ page }) => {
+    await loginToAdmin(page);
+    await page.waitForTimeout(1000);
+
+    const priceForm = page.locator('form').filter({ hasText: 'Cập nhật giá theo ngày' });
+    await expect(priceForm).toBeVisible();
+
+    const productSelect = priceForm.locator('select').first();
+    await productSelect.selectOption({ index: 0 });
+
+    const regionSelect = priceForm.locator('select[name="region"]');
+    await regionSelect.selectOption({ index: 0 });
+
+    const today = new Date().toISOString().split('T')[0];
+    await priceForm.locator('input[name="date"]').fill(today);
+
+    await priceForm.locator('button:has-text("Khoảng giá")').click();
+
+    await priceForm.locator('input[name="valueMin"]').fill(RANGE_PRICE_MIN.toString());
+    await priceForm.locator('input[name="valueMax"]').fill(RANGE_PRICE_MAX.toString());
+
+    const companyName = `Range QA ${Date.now()}`;
+    await priceForm.locator('input[name="company"]').fill(companyName);
+    await priceForm.locator('input[name="source"]').fill('Range automation test');
+
+    await priceForm.locator('button:has-text("Lưu giá")').click();
+
+    await expect(
+      priceForm.locator('text=/Lưu thành công|Giá đã được ghi nhận/i')
+    ).toBeVisible({ timeout: 5000 });
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    const formattedMin = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(RANGE_PRICE_MIN);
+    const formattedMax = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(RANGE_PRICE_MAX);
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rangeSelector = `/${escapeRegex(formattedMin)}\\s*\\u2013\\s*${escapeRegex(formattedMax)}/`;
+
+    const latestPrices = page.locator('h3:has-text("Các dòng giá gần nhất")').locator('..');
+    await expect(latestPrices.locator(`text=${rangeSelector}`).first()).toBeVisible({ timeout: 5000 });
   });
 
   test('TC003: Delete price point successfully (cleanup)', async ({ page }) => {

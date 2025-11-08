@@ -62,6 +62,7 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
   }, [series, selectedProduct]);
 
   const [selectedRegion, setSelectedRegion] = useState<string>(regionOptions[0] ?? "");
+  const [priceMode, setPriceMode] = useState<"SINGLE" | "RANGE">("SINGLE");
 
   useEffect(() => {
     if (regionOptions.length === 0) {
@@ -157,18 +158,80 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
         </label>
       </div>
 
+      <input type="hidden" name="priceMode" value={priceMode} />
+
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs uppercase tracking-[0.25em] text-[#f7c948]/70">Loại giá</span>
+          <div className="inline-flex rounded-full border border-white/15 bg-black/20 p-1 text-xs">
+            {[
+              { label: "Một giá", value: "SINGLE" },
+              { label: "Khoảng giá", value: "RANGE" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPriceMode(option.value as "SINGLE" | "RANGE")}
+                className={`rounded-full px-3 py-1 font-semibold transition ${
+                  priceMode === option.value ? "bg-[#f7c948] text-black" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-gray-400">
+          Với khoảng giá, hệ thống sẽ tự lấy trung bình để dùng cho biểu đồ và sắp xếp.
+        </p>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
-        <label className="flex flex-col gap-2 text-sm">
-          Giá trị
-          <input
-            type="number"
-            step="0.01"
-            name="value"
-            required
-            placeholder="30000"
-            className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
-          />
-        </label>
+        {priceMode === "SINGLE" ? (
+          <label className="flex flex-col gap-2 text-sm md:col-span-1">
+            Giá trị
+            <input
+              type="number"
+              step="0.01"
+              name="value"
+              required
+              placeholder="35000"
+              className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+            />
+          </label>
+        ) : (
+          <>
+            <input type="hidden" name="value" value="" />
+            <label className="flex flex-col gap-2 text-sm">
+              Giá thấp nhất
+              <input
+                type="number"
+                step="0.01"
+                name="valueMin"
+                required
+                placeholder="34000"
+                className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-sm">
+              Giá cao nhất
+              <input
+                type="number"
+                step="0.01"
+                name="valueMax"
+                required
+                placeholder="36000"
+                className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+              />
+            </label>
+          </>
+        )}
+        {priceMode === "SINGLE" ? (
+          <>
+            <input type="hidden" name="valueMin" value="" />
+            <input type="hidden" name="valueMax" value="" />
+          </>
+        ) : null}
         <label className="flex flex-col gap-2 text-sm">
           Công ty (tuỳ chọn)
           <input

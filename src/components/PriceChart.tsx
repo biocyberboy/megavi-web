@@ -69,6 +69,8 @@ type SeriesOption = {
 type PricePoint = {
   ts: string;
   value: number;
+  valueMin?: number | null;
+  valueMax?: number | null;
   source: string | null;
   region?: string;
   company?: string | null;
@@ -530,8 +532,18 @@ export default function PriceChart({
         const matches = points.filter((point) => point.ts === ts);
         if (matches.length > 0) {
           const sum = matches.reduce((total, point) => total + point.value, 0);
+          const minValue = matches.reduce(
+            (min, point) => Math.min(min, point.valueMin ?? point.value),
+            Number.POSITIVE_INFINITY
+          );
+          const maxValue = matches.reduce(
+            (max, point) => Math.max(max, point.valueMax ?? point.value),
+            Number.NEGATIVE_INFINITY
+          );
           dataPoint[region] = sum / matches.length;
           dataPoint[`${region}__count`] = matches.length;
+          dataPoint[`${region}__min`] = minValue === Number.POSITIVE_INFINITY ? undefined : minValue;
+          dataPoint[`${region}__max`] = maxValue === Number.NEGATIVE_INFINITY ? undefined : maxValue;
         }
       });
 
@@ -557,9 +569,11 @@ export default function PriceChart({
       };
 
       Object.entries(companyComparisonData).forEach(([company, points]) => {
-        const point = points.find(p => p.ts === ts);
+        const point = points.find((p) => p.ts === ts);
         if (point) {
           dataPoint[company] = point.value;
+          dataPoint[`${company}__min`] = point.valueMin ?? point.value;
+          dataPoint[`${company}__max`] = point.valueMax ?? point.value;
         }
       });
 
@@ -567,7 +581,7 @@ export default function PriceChart({
     });
   }, [companyComparisonData, selectedRange.value]);
 
-const tableData = useMemo(() => {
+  const tableData = useMemo(() => {
     if (isAllRegionsSelected || isMultiRegionSelected) {
       const allPoints: PricePoint[] = [];
       Object.entries(comparisonData).forEach(([region, points]) => {
@@ -657,10 +671,23 @@ const tableData = useMemo(() => {
     });
   };
 
-  const formatTooltipValue = (value: number) =>
-    `${Intl.NumberFormat("vi-VN").format(value)} ${seriesMeta?.unit ?? "đ/kg"}`;
+  const formatTooltipValue = (value: number, minValue?: number | null, maxValue?: number | null) => {
+    const min = minValue ?? value;
+    const max = maxValue ?? value;
+    const formatter = Intl.NumberFormat("vi-VN");
+    if (Math.abs(min - max) < 0.0001) {
+      return `${formatter.format(value)} ${seriesMeta?.unit ?? "đ/kg"}`;
+    }
+    return `${formatter.format(min)} – ${formatter.format(max)} ${seriesMeta?.unit ?? "đ/kg"}`;
+  };
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ payload: { ts: string; value: number } }> }) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{ payload: { ts: string; value: number; valueMin?: number; valueMax?: number } }>;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       const date = new Date(data.ts);
@@ -685,7 +712,7 @@ const tableData = useMemo(() => {
           </p>
           <p style={{ fontSize: 14 }}>
             <span style={{ fontWeight: 500 }}>Giá: </span>
-            {formatTooltipValue(data.value)}
+            {formatTooltipValue(data.value, data.valueMin, data.valueMax)}
           </p>
         </div>
       );
@@ -709,19 +736,30 @@ const tableData = useMemo(() => {
         })
       : null;
 
-    const regionsWithValue = regionSeriesKeys.map((region) => {
-      const item = payload.find((entry) => entry?.dataKey === region && typeof entry.value === "number");
-      if (!item || typeof item.value !== "number") {
-        return null;
-      }
-      const countKey = `${region}__count`;
-      const rawCount = basePayload && typeof basePayload[countKey] === "number" ? (basePayload[countKey] as number) : 1;
-      return {
-        region,
-        value: item.value,
-        count: rawCount,
-      };
-    }).filter(Boolean) as Array<{ region: string; value: number; count: number }>;
+    const regionsWithValue = regionSeriesKeys
+      .map((region) => {
+        const item = payload.find((entry) => entry?.dataKey === region && typeof entry.value === "number");
+        if (!item || typeof item.value !== "number") {
+          return null;
+        }
+        const countKey = `${region}__count`;
+        const rawCount =
+          basePayload && typeof basePayload[countKey] === "number" ? (basePayload[countKey] as number) : 1;
+        const minKey = `${region}__min`;
+        const maxKey = `${region}__max`;
+        const minValue =
+          basePayload && typeof basePayload[minKey] === "number" ? (basePayload[minKey] as number) : item.value;
+        const maxValue =
+          basePayload && typeof basePayload[maxKey] === "number" ? (basePayload[maxKey] as number) : item.value;
+        return {
+          region,
+          value: item.value,
+          count: rawCount,
+          min: minValue,
+          max: maxValue,
+        };
+      })
+      .filter(Boolean) as Array<{ region: string; value: number; count: number; min: number; max: number }>;
 
     if (regionsWithValue.length === 0) {
       return null;
@@ -748,26 +786,29 @@ const tableData = useMemo(() => {
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {regionsWithValue
             .sort((a, b) => b.value - a.value)
-            .map(({ region, value }) => (
-            <div key={region} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
-                <span
-                  aria-hidden
-                  style={{
-                    display: "inline-block",
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    backgroundColor: REGION_COLORS[region] ?? "#f7c948",
-                  }}
-                />
-                {REGION_LABELS[region] ?? region}
-              </span>
-              <span style={{ fontSize: 12, color: tooltipText, fontWeight: 500 }}>
-                {formatTooltipValue(value)}
-              </span>
-            </div>
-          ))}
+            .map(({ region, value, min, max }) => (
+              <div
+                key={region}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}
+              >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      display: "inline-block",
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      backgroundColor: REGION_COLORS[region] ?? "#f7c948",
+                    }}
+                  />
+                  {REGION_LABELS[region] ?? region}
+                </span>
+                <span style={{ fontSize: 12, color: tooltipText, fontWeight: 500 }}>
+                  {formatTooltipValue(value, min, max)}
+                </span>
+              </div>
+            ))}
           {hasAveraged ? (
             <span style={{ fontSize: 10, color: "rgba(209,213,219,0.75)" }}>
               Giá trung bình theo ngày (tổng hợp từ nhiều công ty).
@@ -783,7 +824,7 @@ const tableData = useMemo(() => {
       return null;
     }
 
-    const basePayload = payload[0]?.payload as { ts?: string } | undefined;
+    const basePayload = payload[0]?.payload as (Record<string, unknown> & { ts?: string }) | undefined;
     const ts = basePayload?.ts;
     const date = ts ? new Date(ts) : null;
     const formattedDate = date
@@ -795,12 +836,24 @@ const tableData = useMemo(() => {
       : null;
 
     const companiesWithValue = payload
-      .filter((entry) => entry?.dataKey && entry.dataKey !== "ts" && entry.dataKey !== "dateLabel" && typeof entry.value === "number")
-      .map((entry) => ({
-        company: String(entry.dataKey),
-        value: entry.value as number,
-        color: entry.color ?? "#f7c948",
-      }))
+      .filter(
+        (entry) => entry?.dataKey && entry.dataKey !== "ts" && entry.dataKey !== "dateLabel" && typeof entry.value === "number"
+      )
+      .map((entry) => {
+        const minKey = `${entry.dataKey}__min`;
+        const maxKey = `${entry.dataKey}__max`;
+        const minValue =
+          basePayload && typeof basePayload[minKey] === "number" ? (basePayload[minKey] as number) : (entry.value as number);
+        const maxValue =
+          basePayload && typeof basePayload[maxKey] === "number" ? (basePayload[maxKey] as number) : (entry.value as number);
+        return {
+          company: String(entry.dataKey),
+          value: entry.value as number,
+          color: entry.color ?? "#f7c948",
+          min: minValue,
+          max: maxValue,
+        };
+      })
       .sort((a, b) => b.value - a.value);
 
     if (companiesWithValue.length === 0) {
@@ -824,7 +877,7 @@ const tableData = useMemo(() => {
           </p>
         ) : null}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          {companiesWithValue.map(({ company, value, color }) => (
+          {companiesWithValue.map(({ company, value, color, min, max }) => (
             <div key={company} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: 12, color: "#d1d5db" }}>
                 <span
@@ -840,7 +893,7 @@ const tableData = useMemo(() => {
                 {company === "null" ? "Chưa phân loại" : company}
               </span>
               <span style={{ fontSize: 12, color: tooltipText, fontWeight: 500 }}>
-                {formatTooltipValue(value)}
+                {formatTooltipValue(value, min, max)}
               </span>
             </div>
           ))}

@@ -36,6 +36,8 @@ model PricePoint {
   company   String?
   ts        DateTime
   value     Decimal
+  valueMin  Decimal?
+  valueMax  Decimal?
   source    String?
   createdAt DateTime    @default(now())
 

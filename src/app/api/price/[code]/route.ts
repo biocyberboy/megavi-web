@@ -13,6 +13,20 @@ function formatPointValue(value: unknown): number {
     : Number((value as { toNumber?: () => number })?.toNumber?.() ?? value);
 }
 
+function normalizeValueRange(source: {
+  value: unknown;
+  valueMin?: unknown | null;
+  valueMax?: unknown | null;
+}) {
+  const baseValue = formatPointValue(source.value);
+  const minRaw = source.valueMin != null ? formatPointValue(source.valueMin) : baseValue;
+  const maxRaw = source.valueMax != null ? formatPointValue(source.valueMax) : baseValue;
+  const valueMin = Math.min(minRaw, maxRaw);
+  const valueMax = Math.max(minRaw, maxRaw);
+  const value = Number.isFinite(baseValue) ? baseValue : (valueMin + valueMax) / 2;
+  return { value, valueMin, valueMax };
+}
+
 function startOfDayUtc(date: Date) {
   const copy = new Date(date);
   copy.setUTCHours(0, 0, 0, 0);
@@ -74,7 +88,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
             : companyParam
           : undefined;
 
-      const regionMap: Record<string, Array<{ ts: string; value: number; source: string | null; region: string; company: string | null }>> = {};
+      const regionMap: Record<
+        string,
+        Array<{
+          ts: string;
+          value: number;
+          valueMin: number;
+          valueMax: number;
+          source: string | null;
+          region: string;
+          company: string | null;
+        }>
+      > = {};
 
       for (const regionValue of normalizedRegions) {
         const where: Record<string, unknown> = {
@@ -118,7 +143,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
         regionMap[regionValue] = points.map((point) => ({
           ts: point.ts.toISOString(),
-          value: formatPointValue(point.value),
+          ...normalizeValueRange(point),
           source: point.source ?? null,
           region: regionValue,
           company: point.company ?? null,
@@ -205,15 +230,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if (!companyParam) {
         const dataByCompany = new Map<
           string,
-          Array<{ ts: string; value: number; source: string | null; company: string | null }>
+          Array<{ ts: string; value: number; valueMin: number; valueMax: number; source: string | null; company: string | null }>
         >();
 
         for (const point of points) {
+          const range = normalizeValueRange(point);
           const companyKey = point.company ?? "null";
           const bucket = dataByCompany.get(companyKey) ?? [];
           bucket.push({
             ts: point.ts.toISOString(),
-            value: formatPointValue(point.value),
+            ...range,
             source: point.source ?? null,
             company: point.company,
           });
@@ -260,7 +286,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           range: isLatest ? 0 : days,
           points: points.map((point) => ({
             ts: point.ts.toISOString(),
-            value: formatPointValue(point.value),
+            ...normalizeValueRange(point),
             source: point.source ?? null,
             region: point.region,
           })),
@@ -301,28 +327,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
         );
       }
 
-      const grouped = new Map<string, { sum: number; count: number }>();
+      const grouped = new Map<string, { sum: number; count: number; min: number; max: number }>();
       const dataByRegion = new Map<
         string,
-        Array<{ ts: string; value: number; source: string | null; region?: string; company?: string | null }>
+        Array<{ ts: string; value: number; valueMin: number; valueMax: number; source: string | null; region?: string; company?: string | null }>
       >();
 
       for (const point of points) {
         const tsKey = point.ts.toISOString();
-        const value = formatPointValue(point.value);
+        const range = normalizeValueRange(point);
         const bucket = grouped.get(tsKey);
         if (bucket) {
-          bucket.sum += value;
+          bucket.sum += range.value;
           bucket.count += 1;
+          bucket.min = Math.min(bucket.min, range.valueMin);
+          bucket.max = Math.max(bucket.max, range.valueMax);
         } else {
-          grouped.set(tsKey, { sum: value, count: 1 });
+          grouped.set(tsKey, { sum: range.value, count: 1, min: range.valueMin, max: range.valueMax });
         }
 
         const regionKey = String(normalizeRegion(point.region ?? "")).toUpperCase();
         const regionBucket = dataByRegion.get(regionKey) ?? [];
         regionBucket.push({
           ts: tsKey,
-          value,
+          ...range,
           source: point.source ?? null,
           region: regionKey,
           company: point.company ?? null,
@@ -334,6 +362,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         .map(([ts, bucket]) => ({
           ts,
           value: bucket.sum / bucket.count,
+          valueMin: bucket.min,
+          valueMax: bucket.max,
           source: null,
           region: "ALL",
         }))
@@ -392,7 +422,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       {
         start: number;
         end: number;
-        points: Array<{ ts: string; value: number; source: string | null; region: string; company: string | null }>;
+        points: Array<{ ts: string; value: number; valueMin: number; valueMax: number; source: string | null; region: string; company: string | null }>;
       }
     >();
 
@@ -408,13 +438,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
       const entry = dataByRegion.get(regionKey);
       if (!entry) {
+        const range = normalizeValueRange(point);
         dataByRegion.set(regionKey, {
           start,
           end,
         points: [
           {
             ts: point.ts.toISOString(),
-            value: formatPointValue(point.value),
+            ...range,
             source: point.source ?? null,
             region: regionKey,
             company: point.company ?? null,
@@ -424,7 +455,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     } else if (tsMs >= entry.start && tsMs < entry.end) {
       entry.points.push({
         ts: point.ts.toISOString(),
-        value: formatPointValue(point.value),
+        ...normalizeValueRange(point),
         source: point.source ?? null,
         region: regionKey,
         company: point.company ?? null,

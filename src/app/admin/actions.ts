@@ -131,10 +131,10 @@ const pricePointSchema = z.object({
   seriesId: z.string().min(1, "Chọn series"),
   region: z.string().min(1, "Chọn vùng"),
   date: z.string().min(1, "Chọn ngày"),
-  value: z
-    .string()
-    .min(1, "Nhập giá trị")
-    .refine((val) => !Number.isNaN(Number(val)), "Giá trị phải là số"),
+  priceMode: z.enum(["SINGLE", "RANGE"]).default("SINGLE"),
+  value: z.string().trim().optional(),
+  valueMin: z.string().trim().optional(),
+  valueMax: z.string().trim().optional(),
   company: z.string().trim().optional(),
   source: z.string().trim().optional(),
 });
@@ -145,7 +145,10 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       seriesId: formData.get("seriesId") ?? "",
       region: formData.get("region") ?? "",
       date: formData.get("date") ?? "",
+      priceMode: formData.get("priceMode") ?? "SINGLE",
       value: formData.get("value") ?? "",
+      valueMin: formData.get("valueMin") ?? "",
+      valueMax: formData.get("valueMax") ?? "",
       company: formData.get("company") ?? "",
       source: formData.get("source") ?? "",
     });
@@ -155,10 +158,49 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       return { success: false, message };
     }
 
-    const { seriesId, region, date, value, company, source } = parsed.data;
+    const { seriesId, region, date, value, valueMin, valueMax, priceMode, company, source } = parsed.data;
     const pointDate = new Date(`${date}T00:00:00Z`);
     const normalizedRegion = region.trim().toUpperCase();
     const normalizedCompany = company && company.length > 0 ? company.trim() : null;
+
+    const ensureNumber = (val: string | undefined, label: string) => {
+      if (!val || val.length === 0) {
+        throw new Error(label);
+      }
+      const num = Number(val);
+      if (Number.isNaN(num)) {
+        throw new Error(label);
+      }
+      return num;
+    };
+
+    let resolvedValue: number;
+    let resolvedMin: number;
+    let resolvedMax: number;
+
+    if (priceMode === "RANGE") {
+      try {
+        const minNumber = ensureNumber(valueMin, "Giá thấp nhất không hợp lệ");
+        const maxNumber = ensureNumber(valueMax, "Giá cao nhất không hợp lệ");
+        if (minNumber > maxNumber) {
+          return { success: false, message: "Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất." };
+        }
+        resolvedMin = minNumber;
+        resolvedMax = maxNumber;
+        resolvedValue = (minNumber + maxNumber) / 2;
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : "Khoảng giá không hợp lệ." };
+      }
+    } else {
+      try {
+        const singleValue = ensureNumber(value, "Giá trị không hợp lệ");
+        resolvedValue = singleValue;
+        resolvedMin = singleValue;
+        resolvedMax = singleValue;
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : "Giá trị không hợp lệ." };
+      }
+    }
 
     // Check if record exists
     const existingRecord = await prisma.pricePoint.findFirst({
@@ -175,7 +217,9 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
       await prisma.pricePoint.update({
         where: { id: existingRecord.id },
         data: {
-          value: Number(value),
+          value: resolvedValue,
+          valueMin: resolvedMin,
+          valueMax: resolvedMax,
           source: source || null,
         },
       });
@@ -187,7 +231,9 @@ export async function createPricePoint(prevState: ActionState, formData: FormDat
           region: normalizedRegion,
           company: normalizedCompany,
           ts: pointDate,
-          value: Number(value),
+          value: resolvedValue,
+          valueMin: resolvedMin,
+          valueMax: resolvedMax,
           source: source || null,
         },
       });
