@@ -40,6 +40,9 @@ const REGION_ORDER: string[] = ["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"];
 const sortRegionsArray = (regions: string[]) =>
   regions.slice().sort((a, b) => REGION_ORDER.indexOf(a) - REGION_ORDER.indexOf(b));
 
+const formatRegionList = (regions: string[]) =>
+  regions.map((region) => REGION_LABELS[region] ?? region).join(", ");
+
 // Company colors - using a palette that works well together
 const COMPANY_COLORS: string[] = [
   ACCENT_COLOR,
@@ -75,6 +78,11 @@ type PricePoint = {
   region?: string;
   company?: string | null;
 };
+
+const normalizeRegionMap = (map: Record<string, PricePoint[]>) =>
+  Object.fromEntries(
+    Object.entries(map).map(([regionKey, points]) => [regionKey.toUpperCase(), points])
+  ) as Record<string, PricePoint[]>;
 
 const rangeOptions: RangeOption[] = [
   { label: "Mới nhất", value: 0 },
@@ -177,6 +185,7 @@ export default function PriceChart({
   const [error, setError] = useState<string | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(!((initialSeriesOptions ?? []).length > 0));
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [chartWarning, setChartWarning] = useState<string | null>(null);
   const initialLoadHandledRef = useRef(false);
 
   const isAllRegionsSelected =
@@ -268,6 +277,7 @@ export default function PriceChart({
       initialLoadHandledRef.current = true;
       setLoading(true);
       setError(null);
+      setChartWarning(null);
 
       // If "ALL" regions selected, fetch all three regions for comparison
       if (isAllRegionsSelected) {
@@ -313,18 +323,35 @@ export default function PriceChart({
 
             const regionMap = payload.regions;
 
+            let normalizedRegionMap: Record<string, PricePoint[]> = {};
+
             if (regionMap && Object.keys(regionMap).length > 0) {
-              setComparisonData(regionMap);
-            } else {
+              normalizedRegionMap = normalizeRegionMap(regionMap);
+            } else if (payload.points && payload.points.length > 0) {
               const fallbackData: Record<string, PricePoint[]> = {};
-              (payload.points ?? []).forEach((point) => {
-                const regionKey = point.region ?? "ALL";
+              payload.points.forEach((point) => {
+                const regionKey = (point.region ?? "ALL").toUpperCase();
                 const bucket = fallbackData[regionKey] ?? [];
                 bucket.push(point);
                 fallbackData[regionKey] = bucket;
               });
-              setComparisonData(fallbackData);
+              normalizedRegionMap = fallbackData;
             }
+
+            const availableRegions = Object.keys(normalizedRegionMap);
+            const missingRegions = REGION_ORDER.filter((region) => !availableRegions.includes(region));
+
+            if (missingRegions.length > 0) {
+              setChartWarning(
+                selectedCompany === "ALL"
+                  ? `Chưa có dữ liệu cho ${formatRegionList(missingRegions)} trong lựa chọn này.`
+                  : `Chưa có dữ liệu của ${selectedCompany} tại ${formatRegionList(missingRegions)}.`
+              );
+            } else {
+              setChartWarning(null);
+            }
+
+            setComparisonData(normalizedRegionMap);
             setData([]);
           }
         } catch (err) {
@@ -340,20 +367,9 @@ export default function PriceChart({
       }
 
       if (isMultiRegionSelected) {
-        if (selectedCompany === "ALL") {
-          if (!ignore) {
-            setError("Vui lòng chọn một công ty để so sánh giữa nhiều vùng.");
-            setComparisonData({});
-            setCompanyComparisonData({});
-            setData([]);
-            setLoading(false);
-          }
-          return;
-        }
-
         try {
           const params = new URLSearchParams({ range: String(selectedRange.value) });
-          selectedRegions.forEach((region) => params.append("regions", region));
+          normalizedSelectedRegions.forEach((region) => params.append("regions", region));
           if (selectedCompany && selectedCompany !== "ALL") {
             params.append("company", selectedCompany);
           }
@@ -378,6 +394,7 @@ export default function PriceChart({
               setComparisonData({});
               setCompanyComparisonData({});
               setData([]);
+              setChartWarning("Không tìm thấy dữ liệu cho các vùng đã chọn.");
               setError("Không tìm thấy dữ liệu cho các vùng đã chọn.");
             }
             return;
@@ -397,8 +414,25 @@ export default function PriceChart({
               product: payload.series.product,
             });
 
-            const regionMap = payload.regions ?? {};
-            setComparisonData(regionMap);
+            const normalizedRegionMap = normalizeRegionMap(payload.regions ?? {});
+            const filteredRegionMap = Object.fromEntries(
+              Object.entries(normalizedRegionMap).filter(([region]) => normalizedSelectedRegions.includes(region))
+            );
+            const availableRegions = Object.keys(filteredRegionMap);
+            const expectedRegions = normalizedSelectedRegions;
+            const missingRegions = expectedRegions.filter((region) => !availableRegions.includes(region));
+
+            if (missingRegions.length > 0) {
+              setChartWarning(
+                selectedCompany === "ALL"
+                  ? `Chưa có dữ liệu cho ${formatRegionList(missingRegions)} trong lựa chọn hiện tại.`
+                  : `Chưa có dữ liệu của ${selectedCompany} tại ${formatRegionList(missingRegions)}.`
+              );
+            } else {
+              setChartWarning(null);
+            }
+
+            setComparisonData(filteredRegionMap);
             setCompanyComparisonData({});
             setData([]);
           }
@@ -497,6 +531,7 @@ export default function PriceChart({
     isAllRegionsSelected,
     isMultiRegionSelected,
     primaryRegion,
+    normalizedSelectedRegions,
   ]);
 
   const chartData = useMemo(
@@ -513,7 +548,7 @@ export default function PriceChart({
 
   const comparisonChartData = useMemo(() => {
     const allTimestamps = new Set<string>();
-    Object.values(comparisonData).forEach((points) => {
+    Object.values(activeComparisonData).forEach((points) => {
       points.forEach((point) => allTimestamps.add(point.ts));
     });
 
@@ -528,7 +563,7 @@ export default function PriceChart({
         }),
       };
 
-      Object.entries(comparisonData).forEach(([region, points]) => {
+      Object.entries(activeComparisonData).forEach(([region, points]) => {
         const matches = points.filter((point) => point.ts === ts);
         if (matches.length > 0) {
           const sum = matches.reduce((total, point) => total + point.value, 0);
@@ -549,7 +584,7 @@ export default function PriceChart({
 
       return dataPoint;
     });
-  }, [comparisonData, selectedRange.value]);
+  }, [activeComparisonData, selectedRange.value]);
 
   const companyComparisonChartData = useMemo(() => {
     const allTimestamps = new Set<string>();
@@ -581,10 +616,20 @@ export default function PriceChart({
     });
   }, [companyComparisonData, selectedRange.value]);
 
+  const activeComparisonData = useMemo(() => {
+    if (isAllRegionsSelected) {
+      return comparisonData;
+    }
+    const allowed = new Set(normalizedSelectedRegions);
+    return Object.fromEntries(
+      Object.entries(comparisonData).filter(([region]) => allowed.has(region))
+    );
+  }, [comparisonData, isAllRegionsSelected, normalizedSelectedRegions]);
+
   const tableData = useMemo(() => {
     if (isAllRegionsSelected || isMultiRegionSelected) {
       const allPoints: PricePoint[] = [];
-      Object.entries(comparisonData).forEach(([region, points]) => {
+      Object.entries(activeComparisonData).forEach(([region, points]) => {
         points.forEach((point) => {
           allPoints.push({ ...point, region, company: point.company ?? null });
         });
@@ -608,7 +653,7 @@ export default function PriceChart({
 
     return data;
   }, [
-    comparisonData,
+    activeComparisonData,
     companyComparisonData,
     data,
     isAllRegionsSelected,
@@ -623,7 +668,17 @@ export default function PriceChart({
         .join(", ");
 
   const tableRegionValue = isSingleRegionSelected ? primaryRegion : undefined;
-  const regionSeriesKeys = isAllRegionsSelected ? REGION_ORDER : normalizedSelectedRegions;
+  const regionSeriesKeys = useMemo(() => {
+    if (isAllRegionsSelected) {
+      const keys = REGION_ORDER.filter((region) => (activeComparisonData[region] ?? []).length > 0);
+      return keys.length > 0 ? keys : REGION_ORDER;
+    }
+    if (isMultiRegionSelected) {
+      const keys = normalizedSelectedRegions.filter((region) => (activeComparisonData[region] ?? []).length > 0);
+      return keys.length > 0 ? normalizedSelectedRegions : keys;
+    }
+    return normalizedSelectedRegions;
+  }, [isAllRegionsSelected, isMultiRegionSelected, normalizedSelectedRegions, activeComparisonData]);
 
   const activePointCount = useMemo(() => {
     if (isAllRegionsSelected || isMultiRegionSelected) {
@@ -985,7 +1040,8 @@ export default function PriceChart({
 
         const payload: { companies: string[] } = await response.json();
         if (!ignore) {
-          setCompanyOptions(payload.companies);
+          const uniqueCompanies = Array.from(new Set(payload.companies));
+          setCompanyOptions(uniqueCompanies);
         }
       } catch (err) {
         if (!ignore && err instanceof Error && err.name !== "AbortError") {
@@ -1002,12 +1058,6 @@ export default function PriceChart({
       controller.abort();
     };
   }, [selectedProduct, regionSelectionKey, seriesOptions, isAllRegionsSelected]);
-
-  useEffect(() => {
-    if (isMultiRegionSelected && (selectedCompany === "ALL" || !selectedCompany) && companyOptions.length > 0) {
-      setSelectedCompany(companyOptions[0]);
-    }
-  }, [isMultiRegionSelected, selectedCompany, companyOptions]);
 
   return (
     <div className="theme-panel space-y-4 md:space-y-6 rounded-2xl md:rounded-3xl border p-4 md:p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur">
@@ -1132,8 +1182,13 @@ export default function PriceChart({
             {isMultiRegionSelected ? (
               <span className="mt-1 text-[10px] text-gray-400">
                 {selectedCompany === "ALL"
-                  ? "Chọn một công ty để so sánh giữa các vùng."
+                  ? `So sánh trung bình tất cả công ty tại ${displayRegionLabel}.`
                   : `So sánh ${selectedCompany} tại ${displayRegionLabel}.`}
+              </span>
+            ) : null}
+            {chartWarning ? (
+              <span className="mt-1 text-[11px] text-[#f7c948]">
+                {chartWarning}
               </span>
             ) : null}
           </div>
@@ -1195,36 +1250,23 @@ export default function PriceChart({
                     iconType="line"
                     formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="MIEN_BAC"
-                    stroke={REGION_COLORS.MIEN_BAC}
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_BAC }}
-                    name="MIEN_BAC"
-                    connectNulls
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="MIEN_TRUNG"
-                    stroke={REGION_COLORS.MIEN_TRUNG}
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_TRUNG }}
-                    name="MIEN_TRUNG"
-                    connectNulls
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="MIEN_NAM"
-                    stroke={REGION_COLORS.MIEN_NAM}
-                    strokeWidth={2.5}
-                    dot={false}
-                    activeDot={{ r: 6, strokeWidth: 0, fill: REGION_COLORS.MIEN_NAM }}
-                    name="MIEN_NAM"
-                    connectNulls
-                  />
+                  {regionSeriesKeys.map((region) => (
+                    <Line
+                      key={region}
+                      type="monotone"
+                      dataKey={region}
+                      stroke={REGION_COLORS[region as keyof typeof REGION_COLORS] ?? ACCENT_COLOR}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{
+                        r: 6,
+                        strokeWidth: 0,
+                        fill: REGION_COLORS[region as keyof typeof REGION_COLORS] ?? ACCENT_COLOR,
+                      }}
+                      name={region}
+                      connectNulls
+                    />
+                  ))}
                 </LineChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <LineChart data={companyComparisonChartData}>
@@ -1339,49 +1381,32 @@ export default function PriceChart({
                     formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
                   <defs>
-                    <linearGradient id="colorMienBac" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f7c948" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#f7c948" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="colorMienTrung" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#B06A55" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#B06A55" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="colorMienNam" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4E7C9A" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#4E7C9A" stopOpacity={0.1} />
-                    </linearGradient>
+                    {regionSeriesKeys.map((region) => {
+                      const color = REGION_COLORS[region as keyof typeof REGION_COLORS] ?? ACCENT_COLOR;
+                      return (
+                        <linearGradient key={region} id={`colorRegion${region}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={color} stopOpacity={0.8} />
+                          <stop offset="95%" stopColor={color} stopOpacity={0.1} />
+                        </linearGradient>
+                      );
+                    })}
                   </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="MIEN_BAC"
-                    stroke={REGION_COLORS.MIEN_BAC}
-                    strokeWidth={2.5}
-                    fill="url(#colorMienBac)"
-                    fillOpacity={0.6}
-                    name="MIEN_BAC"
-                    connectNulls
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="MIEN_TRUNG"
-                    stroke={REGION_COLORS.MIEN_TRUNG}
-                    strokeWidth={2.5}
-                    fill="url(#colorMienTrung)"
-                    fillOpacity={0.6}
-                    name="MIEN_TRUNG"
-                    connectNulls
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="MIEN_NAM"
-                    stroke={REGION_COLORS.MIEN_NAM}
-                    strokeWidth={2.5}
-                    fill="url(#colorMienNam)"
-                    fillOpacity={0.6}
-                    name="MIEN_NAM"
-                    connectNulls
-                  />
+                  {regionSeriesKeys.map((region) => {
+                    const color = REGION_COLORS[region as keyof typeof REGION_COLORS] ?? ACCENT_COLOR;
+                    return (
+                      <Area
+                        key={region}
+                        type="monotone"
+                        dataKey={region}
+                        stroke={color}
+                        strokeWidth={2.5}
+                        fill={`url(#colorRegion${region})`}
+                        fillOpacity={0.6}
+                        name={region}
+                        connectNulls
+                      />
+                    );
+                  })}
                 </AreaChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <AreaChart data={companyComparisonChartData}>
@@ -1501,24 +1526,15 @@ export default function PriceChart({
                     iconType="rect"
                     formatter={(value) => <span style={{ color: legendTextColor, fontSize: 12 }}>{REGION_LABELS[value as string] ?? value}</span>}
                   />
-                  <Bar
-                    dataKey="MIEN_BAC"
-                    fill={REGION_COLORS.MIEN_BAC}
-                    radius={[8, 8, 0, 0]}
-                    name="MIEN_BAC"
-                  />
-                  <Bar
-                    dataKey="MIEN_TRUNG"
-                    fill={REGION_COLORS.MIEN_TRUNG}
-                    radius={[8, 8, 0, 0]}
-                    name="MIEN_TRUNG"
-                  />
-                  <Bar
-                    dataKey="MIEN_NAM"
-                    fill={REGION_COLORS.MIEN_NAM}
-                    radius={[8, 8, 0, 0]}
-                    name="MIEN_NAM"
-                  />
+                  {regionSeriesKeys.map((region) => (
+                    <Bar
+                      key={region}
+                      dataKey={region}
+                      fill={REGION_COLORS[region as keyof typeof REGION_COLORS] ?? ACCENT_COLOR}
+                      radius={[8, 8, 0, 0]}
+                      name={region}
+                    />
+                  ))}
                 </BarChart>
               ) : companyComparisonChartData.length > 0 ? (
                 <BarChart data={companyComparisonChartData}>
