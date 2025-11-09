@@ -121,8 +121,12 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
                 </td>
               </tr>
             ) : (
-              pageData.map((point, idx) => (
-                <tr key={point.region ? `${point.ts}-${point.region}` : `${point.ts}-${idx}`} className="border-b border-white/5 last:border-none">
+              pageData.map((point, idx) => {
+                const rowKey = point.region
+                  ? `${point.ts}-${point.region}-${point.company ?? "null"}-${point.value}-${point.valueMin ?? ""}-${point.valueMax ?? ""}`
+                  : `${point.ts}-${idx}`;
+                return (
+                <tr key={rowKey} className="border-b border-white/5 last:border-none">
                   <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400 whitespace-nowrap">{formatRegionLabel(point.region)}</td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-200 whitespace-nowrap font-medium">
                     {new Date(point.ts).toLocaleDateString("vi-VN", {
@@ -136,7 +140,8 @@ export default function PriceTable({ series, rangeLabel, data, loading, error, r
                   </td>
                   <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-400">{point.company || "—"}</td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

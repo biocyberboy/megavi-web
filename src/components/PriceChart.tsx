@@ -649,32 +649,55 @@ export default function PriceChart({
     });
   }, [companyComparisonData, selectedRange.value]);
 
-  const tableData = useMemo(() => {
+const tableData = useMemo(() => {
+    const toKey = (point: PricePoint, regionOverride?: string, companyOverride?: string | null) => {
+      const regionKey = (regionOverride ?? point.region ?? primaryRegion ?? "ALL").toUpperCase();
+      const companyKey = companyOverride ?? point.company ?? null;
+      const minKey = point.valueMin != null ? String(point.valueMin) : "";
+      const maxKey = point.valueMax != null ? String(point.valueMax) : "";
+      return `${point.ts}|${regionKey}|${companyKey ?? "null"}|${point.value}|${minKey}|${maxKey}`;
+    };
+
     if (isAllRegionsSelected || isMultiRegionSelected) {
-      const allPoints: PricePoint[] = [];
+      const unique = new Map<string, PricePoint>();
       Object.entries(activeComparisonData).forEach(([region, points]) => {
         points.forEach((point) => {
-          allPoints.push({ ...point, region, company: point.company ?? null });
+          const key = toKey(point, region, point.company ?? null);
+          if (!unique.has(key)) {
+            unique.set(key, { ...point, region, company: point.company ?? null });
+          }
         });
       });
-      return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
+      return Array.from(unique.values()).sort((a, b) => b.ts.localeCompare(a.ts));
     }
 
     if (Object.keys(companyComparisonData).length > 0) {
-      const allPoints: PricePoint[] = [];
+      const unique = new Map<string, PricePoint>();
       Object.entries(companyComparisonData).forEach(([company, points]) => {
         points.forEach((point) => {
-          allPoints.push({
-            ...point,
-            region: primaryRegion,
-            company: company === "null" ? null : company,
-          });
+          const normalizedCompany = company === "null" ? null : company;
+          const key = toKey(point, primaryRegion, normalizedCompany);
+          if (!unique.has(key)) {
+            unique.set(key, {
+              ...point,
+              region: primaryRegion,
+              company: normalizedCompany,
+            });
+          }
         });
       });
-      return allPoints.sort((a, b) => b.ts.localeCompare(a.ts));
+      return Array.from(unique.values()).sort((a, b) => b.ts.localeCompare(a.ts));
     }
 
-    return data;
+    // Single-region mode (data array)
+    const unique = new Map<string, PricePoint>();
+    data.forEach((point) => {
+      const key = toKey(point, point.region ?? primaryRegion, point.company ?? null);
+      if (!unique.has(key)) {
+        unique.set(key, point);
+      }
+    });
+    return Array.from(unique.values()).sort((a, b) => b.ts.localeCompare(a.ts));
   }, [
     activeComparisonData,
     companyComparisonData,

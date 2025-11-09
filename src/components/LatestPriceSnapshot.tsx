@@ -43,6 +43,12 @@ type SnapshotTemplate = {
   previewClass: string;
 };
 
+const SNAPSHOT_FOOTER_LINKS = [
+  { label: "Website", value: "megavi.space" },
+  { label: "Facebook", value: "fb.com/megaviinsight" },
+  { label: "TikTok", value: "tiktok.com/@megavi.insight" },
+];
+
 const SNAPSHOT_TEMPLATES: SnapshotTemplate[] = [
   {
     id: "classic",
@@ -167,6 +173,7 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
   const [showSeriesSelector, setShowSeriesSelector] = useState(false);
   const [selectedSeriesIds, setSelectedSeriesIds] = useState<Set<string>>(new Set());
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(SNAPSHOT_TEMPLATES[0]?.id ?? "classic");
+  const [footerVisible, setFooterVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { theme } = useTheme();
 
@@ -273,6 +280,8 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
     if (!containerRef.current) return;
 
     try {
+      setFooterVisible(true);
+      await new Promise((resolve) => setTimeout(resolve, 50));
       const dataUrl = await toPng(containerRef.current, {
         cacheBust: true,
         backgroundColor: selectedTemplate.captureBackground,
@@ -286,6 +295,8 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
     } catch (err) {
       console.error("Failed to capture snapshot", err);
       alert("Không thể chụp ảnh bảng giá. Vui lòng thử lại.");
+    } finally {
+      setFooterVisible(false);
     }
   };
 
@@ -481,6 +492,21 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
                 </div>
               );
             })}
+          </div>
+        )}
+        {footerVisible && (
+          <div
+            className={`mt-4 rounded-2xl border px-3 py-1.5 ${
+              theme === "light" ? "border-slate-200 bg-white text-slate-900" : "border-white/15 bg-white/5 text-gray-200"
+            }`}
+          >
+            <div className="flex w-full items-center justify-between gap-3 text-[8px] uppercase tracking-[0.18em] leading-tight font-semibold">
+              {SNAPSHOT_FOOTER_LINKS.map((item) => (
+                <span key={item.label} className="whitespace-nowrap">
+                  {item.value}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>
