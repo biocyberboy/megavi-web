@@ -50,6 +50,8 @@ const REGION_LABELS: Record<string, string> = {
   ALL: "Tất cả vùng",
 };
 
+const LATEST_PRICE_PAGE_SIZE = 30;
+
 type PostSummary = {
   id: string;
   slug: string;
@@ -87,10 +89,39 @@ type PricePointSummary = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   let posts: PostSummary[] = [];
   let series: SeriesSummary[] = [];
   let pricePoints: PricePointSummary[] = [];
+  const resolvedSearchParams = await searchParams;
+  const dateFromParam = resolvedSearchParams?.dateFrom as string | undefined;
+  const dateToParam = resolvedSearchParams?.dateTo as string | undefined;
+
+  const parseDate = (value?: string) => {
+    if (!value) return undefined;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  const filterDateFrom = parseDate(dateFromParam);
+  const filterDateTo = parseDate(dateToParam);
+
+  const pricePointWhere: Prisma.PricePointWhereInput = {};
+  if (filterDateFrom || filterDateTo) {
+    pricePointWhere.ts = {};
+    if (filterDateFrom) {
+      pricePointWhere.ts.gte = filterDateFrom;
+    }
+    if (filterDateTo) {
+      const end = new Date(filterDateTo);
+      end.setUTCHours(23, 59, 59, 999);
+      pricePointWhere.ts.lte = end;
+    }
+  }
 
   try {
     const [postData, seriesData, pricePointData] = await Promise.all([
@@ -116,7 +147,8 @@ export default async function AdminPage() {
       }),
       prisma.pricePoint.findMany({
         orderBy: { ts: "desc" },
-        take: 200,
+        where: pricePointWhere,
+        take: 400,
         include: {
           series: {
             select: {
@@ -165,7 +197,7 @@ export default async function AdminPage() {
     pricePointCount: pricePoints.length,
   };
 
-  const latestPricePoints = pricePoints.slice(0, 25);
+  const latestPricePoints = pricePoints.slice(0, LATEST_PRICE_PAGE_SIZE);
 
   return (
     <ClientGate>
@@ -304,13 +336,57 @@ export default async function AdminPage() {
                   <PriceForm series={seriesOptions} />
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-[#f6f7f9]">Các dòng giá gần nhất</h3>
+                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 space-y-3">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[#f6f7f9]">Các dòng giá gần nhất</h3>
+                      <p className="text-[11px] text-gray-400">
+                        Lọc theo ngày giá được ghi nhận (Giá theo ngày)
+                      </p>
+                    </div>
+                    <form className="flex flex-col gap-2 text-[11px] text-gray-300 md:flex-row md:items-end" method="get">
+                      <label className="flex flex-col gap-1">
+                        Từ ngày
+                        <input
+                          type="date"
+                          name="dateFrom"
+                          defaultValue={dateFromParam}
+                          className="rounded-2xl border border-white/15 bg-black/30 px-3 py-1.5 text-xs text-white outline-none transition focus:border-[#f7c948]"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        Đến ngày
+                        <input
+                          type="date"
+                          name="dateTo"
+                          defaultValue={dateToParam}
+                          className="rounded-2xl border border-white/15 bg-black/30 px-3 py-1.5 text-xs text-white outline-none transition focus:border-[#f7c948]"
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="rounded-2xl border border-white/15 px-4 py-2 text-xs font-semibold text-white transition hover:border-[#f7c948] hover:text-[#f7c948]"
+                        >
+                          Áp dụng
+                        </button>
+                        {(dateFromParam || dateToParam) && (
+                          <a
+                            href="/admin"
+                            className="rounded-2xl border border-white/15 px-4 py-2 text-xs font-semibold text-gray-300 transition hover:border-gray-400 hover:text-white"
+                          >
+                            Xoá lọc
+                          </a>
+                        )}
+                      </div>
+                    </form>
+                  </div>
                   <div className="max-h-[320px] overflow-y-auto">
                     <table className="w-full border-separate border-spacing-y-2 text-left text-xs md:text-sm">
                       <thead className="text-[10px] uppercase tracking-[0.2em] text-[#f7c948]/80">
                         <tr>
                           <th className="px-3 py-2">Series</th>
+                          <th className="px-3 py-2">Công ty</th>
                           <th className="px-3 py-2">Vùng</th>
                           <th className="px-3 py-2">Ngày</th>
                           <th className="px-3 py-2 text-right">Giá trị</th>
@@ -332,6 +408,9 @@ export default async function AdminPage() {
                                 <div className="text-[10px] text-gray-400">
                                   {point.series ? deriveProductFromCode(point.series.code) : "—"}
                                 </div>
+                              </td>
+                              <td className="px-3 py-2 text-[10px] text-gray-300">
+                                {point.company ?? "—"}
                               </td>
                               <td className="px-3 py-2 text-[10px] text-gray-400">
                                 {REGION_LABELS[normalizeRegion(point.region)] ?? point.region}

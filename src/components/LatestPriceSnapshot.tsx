@@ -46,7 +46,7 @@ type SnapshotTemplate = {
 const SNAPSHOT_FOOTER_LINKS = [
   { label: "Website", value: "megavi.space" },
   { label: "Facebook", value: "fb.com/megaviinsight" },
-  { label: "TikTok", value: "tiktok.com/@megavi.insight" },
+  { label: "TikTok", value: "tiktok.com/@megaviinsight" },
 ];
 
 const SNAPSHOT_TEMPLATES: SnapshotTemplate[] = [
@@ -500,7 +500,7 @@ export default function LatestPriceSnapshotPanel({ initialData }: { initialData:
               theme === "light" ? "border-slate-200 bg-white text-slate-900" : "border-white/15 bg-white/5 text-gray-200"
             }`}
           >
-            <div className="flex w-full items-center justify-between gap-3 text-[8px] uppercase tracking-[0.18em] leading-tight font-semibold">
+            <div className="flex w-full items-center justify-between gap-1 text-[5px] sm:text-[6px] md:text-[8px] uppercase tracking-[0.2em] leading-tight font-semibold">
               {SNAPSHOT_FOOTER_LINKS.map((item) => (
                 <span key={item.label} className="whitespace-nowrap">
                   {item.value}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 
 import type { ActionState } from "./actions";
-import { createPricePoint } from "./actions";
+import { createPricePoint, createPricePointsBatch, importPricePointsCsv } from "./actions";
 import { REGION_KEYS, normalizeRegion } from "@/lib/seriesCode";
 
 const initialState: ActionState = { success: false, message: "" };
@@ -37,7 +37,7 @@ const REGION_LABELS: Record<string, string> = {
   MIEN_NAM: "Miền Nam",
 };
 
-export default function PriceForm({ series }: { series: SeriesOption[] }) {
+function SingleRegionPriceForm({ series }: { series: SeriesOption[] }) {
   const [state, formAction] = useFormState(createPricePoint, initialState);
 
   const productOptions = useMemo(() => {
@@ -263,5 +263,203 @@ export default function PriceForm({ series }: { series: SeriesOption[] }) {
         <SubmitButton label="Lưu giá" disabled={selectedSeriesId === ""} />
       </div>
     </form>
+  );
+}
+
+function MultiRegionPriceForm({ series }: { series: SeriesOption[] }) {
+  const [state, formAction] = useFormState(createPricePointsBatch, initialState);
+
+  const productOptions = useMemo(() => {
+    const map = new Map<string, { product: string; name: string }>();
+    series.forEach((item) => {
+      if (!map.has(item.product)) {
+        map.set(item.product, { product: item.product, name: item.name });
+      }
+    });
+    return Array.from(map.values());
+  }, [series]);
+
+  const [selectedProduct, setSelectedProduct] = useState(productOptions[0]?.product ?? "");
+  const selectedSeries = useMemo(() => series.find((item) => item.product === selectedProduct) ?? null, [series, selectedProduct]);
+  const selectedSeriesId = selectedSeries?.id ?? "";
+  const [priceMode, setPriceMode] = useState<"SINGLE" | "RANGE">("SINGLE");
+
+  return (
+    <form action={formAction} className="theme-panel space-y-4 rounded-3xl border p-6 shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+      <div>
+        <h3 className="text-lg font-serif text-[#f6f7f9]">Nhập nhanh 3 vùng</h3>
+        <p className="mt-1 text-xs text-gray-400">Cùng ngày - cùng công ty - tự động ghi cho Miền Bắc, Trung, Nam.</p>
+      </div>
+
+      <input type="hidden" name="seriesId" value={selectedSeriesId} />
+      <input type="hidden" name="priceMode" value={priceMode} />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <label className="flex flex-col gap-2 text-sm">
+          Sản phẩm
+          <select
+            value={selectedProduct}
+            onChange={(event) => setSelectedProduct(event.target.value)}
+            className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+          >
+            {productOptions.map((option) => (
+              <option key={option.product} value={option.product} className="bg-white text-black dark:bg-[#0b0b0b] dark:text-white">
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          Ngày
+          <input
+            type="date"
+            name="date"
+            required
+            className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm">
+          Nguồn (tuỳ chọn)
+          <input
+            name="source"
+            placeholder="Báo cáo nội bộ"
+            className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+          />
+        </label>
+      </div>
+      <input type="hidden" name="company" value="" />
+
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs uppercase tracking-[0.25em] text-[#f7c948]/70">Kiểu nhập</span>
+          <div className="inline-flex rounded-full border border-white/15 bg-black/20 p-1 text-xs">
+            {[
+              { label: "Một giá", value: "SINGLE" },
+              { label: "Khoảng giá", value: "RANGE" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPriceMode(option.value as "SINGLE" | "RANGE")}
+                className={`rounded-full px-3 py-1 font-semibold transition ${
+                  priceMode === option.value ? "bg-[#f7c948] text-black" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-gray-400">Để trống vùng không muốn cập nhật.</p>
+      </div>
+
+      <div className="space-y-3">
+        {["MIEN_BAC", "MIEN_TRUNG", "MIEN_NAM"].map((region) => (
+          <div key={region} className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-[#f7c948]/70">{REGION_LABELS[region] ?? region}</p>
+              <div className="mt-2 grid gap-3 md:grid-cols-3">
+                <label className="flex flex-col gap-1 text-sm">
+                  {priceMode === "SINGLE" ? "Giá" : "Giá thấp nhất"}
+                  <input
+                    type="number"
+                    step="0.01"
+                    name={`value-${region}`}
+                    placeholder="Ví dụ: 45"
+                    inputMode="decimal"
+                    className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+                  />
+                </label>
+                {priceMode === "RANGE" && (
+                  <label className="flex flex-col gap-1 text-sm">
+                    Giá cao nhất
+                    <input
+                      type="number"
+                    step="0.01"
+                    name={`valueMax-${region}`}
+                    placeholder="Ví dụ: 47"
+                    inputMode="decimal"
+                    className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+                  />
+                  </label>
+                )}
+                <label className="flex flex-col gap-1 text-sm">
+                  Công ty (tuỳ chọn)
+                  <input
+                    name={`company-${region}`}
+                    placeholder="CP, Japfa..."
+                    className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition focus:border-[#f7c948]"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className={state.message ? (state.success ? "text-emerald-400" : "text-red-400") : "text-gray-400"}>
+          {state.message || ""}
+        </span>
+        <SubmitButton label="Lưu 3 vùng" disabled={selectedSeriesId === ""} />
+      </div>
+    </form>
+  );
+}
+
+function CsvImportForm() {
+  const [state, formAction] = useFormState(importPricePointsCsv, initialState);
+
+  return (
+    <form action={formAction} className="theme-panel space-y-4 rounded-3xl border p-6 shadow-[0_20px_60px_rgba(0,0,0,0.4)]" encType="multipart/form-data">
+      <div>
+        <h3 className="text-lg font-serif text-[#f6f7f9]">Nhập bằng CSV</h3>
+        <p className="mt-1 text-xs text-gray-400">Dành cho import số lượng lớn (có nhiều series).</p>
+      </div>
+
+      <label className="flex flex-col gap-2 text-sm">
+        Tệp CSV
+        <input
+          type="file"
+          name="file"
+          accept=".csv,text/csv"
+          required
+          className="theme-field rounded-2xl border px-4 py-2 text-sm outline-none transition file:mr-3 file:cursor-pointer file:rounded-xl file:border-none file:bg-[#f7c948]/90 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-black focus:border-[#f7c948]"
+        />
+      </label>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-[11px] text-gray-300 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="font-semibold text-[#f7c948]">Yêu cầu:</p>
+          <a
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(`seriesCode,date,region,company,value,valueMin,valueMax,source\nGA_TRANG,2025-01-10,MIEN_BAC,CP,35000,,,Bai viet FB\nGA_TRANG,2025-01-10,MIEN_TRUNG,Dabaco,,34000,36000,Ho tro\nGA_TRANG,2025-01-10,MIEN_NAM,,34500,,,@note\n`)}`}
+            download="megavi-price-sample.csv"
+            className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:border-[#f7c948] hover:text-[#f7c948]"
+          >
+            Tải file mẫu
+          </a>
+        </div>
+        <ul className="list-disc space-y-1 pl-4">
+          <li>Header gồm: <code className="text-[#f7c948]">seriesCode, date(YYYY-MM-DD), region, company, value, valueMin, valueMax, source</code>.</li>
+          <li>Mỗi dòng ứng với 1 vùng. Có thể bỏ trống valueMin/valueMax nếu chỉ nhập một giá.</li>
+          <li>Ví dụ seriesCode: <code className="text-[#f7c948]">GA_TRANG</code>.</li>
+        </ul>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className={state.message ? (state.success ? "text-emerald-400" : "text-red-400") : "text-gray-400"}>
+          {state.message || ""}
+        </span>
+        <SubmitButton label="Nhập CSV" />
+      </div>
+    </form>
+  );
+}
+
+export default function PriceForm({ series }: { series: SeriesOption[] }) {
+  return (
+    <div className="space-y-6">
+      <SingleRegionPriceForm series={series} />
+      <MultiRegionPriceForm series={series} />
+      <CsvImportForm />
+    </div>
   );
 }
