@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { BasePage } from './BasePage';
+import { LatestSnapshotPanel } from '../components/LatestSnapshotPanel';
 
 export class PricePage extends BasePage {
   readonly pageTitle = this.page.locator('h1:has-text("Giá Gia Cầm Việt Nam")');
@@ -8,7 +9,9 @@ export class PricePage extends BasePage {
   readonly rangeSelector = this.page.locator('select').last();
   readonly chart = this.page.locator('[data-testid="price-chart"], .recharts-wrapper, canvas').first();
   readonly priceTable = this.page.locator('table');
-  readonly latestSnapshot = this.page.locator('[data-testid="latest-snapshot"]');
+  readonly latestSnapshotPanel = new LatestSnapshotPanel(
+    this.page.locator('.latest-snapshot-panel').first()
+  );
   readonly loadingIndicator = this.page.locator('[data-testid="loading"]');
 
   async goto() {

@@ -97,15 +97,16 @@ test.describe('Price Dashboard - Data Interaction', () => {
     }
   });
 
-  test('should display latest price snapshot if available', async ({ pricePage, page }) => {
+  test('should display latest price snapshot if available', async ({ pricePage }) => {
     await pricePage.goto();
     await pricePage.waitForDataLoad();
-    
-    const snapshot = page.locator('text=/giá|đ\\/kg|VND/i').first();
-    const hasSnapshot = await snapshot.isVisible().catch(() => false);
-    
-    if (hasSnapshot) {
-      await expect(snapshot).toBeVisible();
+
+    // Ví dụ sử dụng Component Object thay vì query DOM trực tiếp
+    const hasEntries = await pricePage.latestSnapshotPanel.hasEntries();
+
+    if (hasEntries) {
+      await pricePage.latestSnapshotPanel.waitForVisible();
+      await pricePage.latestSnapshotPanel.expectHasEntries();
     }
   });
 });
